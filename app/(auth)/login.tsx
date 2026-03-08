@@ -1,3 +1,4 @@
+import { makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { LogIn, Trophy } from 'lucide-react-native';
@@ -13,11 +14,17 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const { loginWithGooglePopup, loginWithGoogleCredential } = useAuth();
 
-    // Setup for Native Google login
+    // Google Android Client IDs require a very specific redirect URI format
+    // when using web-based OAuth flows.
+    const redirectUri = Platform.OS === 'android'
+        ? 'com.sreyaslbs.playbuddy:/oauth2redirect'
+        : makeRedirectUri();
+
     const [request, response, promptAsync] = Google.useAuthRequest({
         webClientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
         androidClientId: '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com',
         scopes: ['openid', 'profile', 'email'],
+        redirectUri,
     });
 
     const handleGoogleLogin = async () => {
