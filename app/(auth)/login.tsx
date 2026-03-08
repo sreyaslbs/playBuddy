@@ -20,7 +20,7 @@ export default function LoginScreen() {
         ? 'com.sreyaslbs.playbuddy:/oauth2redirect'
         : makeRedirectUri();
 
-    const [request, response, promptAsync] = Google.useAuthRequest({
+    const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         webClientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
         androidClientId: '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com',
         scopes: ['openid', 'profile', 'email'],
@@ -38,8 +38,11 @@ export default function LoginScreen() {
                 if (request) {
                     const result = await promptAsync();
                     if (result.type === 'success') {
-                        const { idToken } = result.authentication || {};
-                        await loginWithGoogleCredential(idToken || '');
+                        const idToken = result.authentication?.idToken || (result.params && result.params.id_token);
+                        if (!idToken) {
+                            throw new Error("No ID token received from Google.");
+                        }
+                        await loginWithGoogleCredential(idToken);
                     }
                 }
             }
