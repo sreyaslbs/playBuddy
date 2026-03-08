@@ -25,7 +25,7 @@ interface AuthContextType {
     metadata: UserMetadata | null;
     loading: boolean;
     loginWithGooglePopup: () => Promise<void>;
-    loginWithGoogleCredential: (idToken: string) => Promise<void>;
+    loginWithGoogleCredential: (idToken: string | null, accessToken?: string | null) => Promise<void>;
     setAccountRole: (selectedRole: UserRole) => Promise<void>;
     updateUserData: (data: Partial<UserMetadata>) => Promise<void>;
     logout: () => Promise<void>;
@@ -134,8 +134,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await handleUserRegistration(result.user);
     };
 
-    const loginWithGoogleCredential = async (idToken: string) => {
-        const credential = GoogleAuthProvider.credential(idToken);
+    const loginWithGoogleCredential = async (idToken: string | null, accessToken?: string | null) => {
+        // Firebase allows logging in with an access token if id token fails or is omitted
+        const credential = GoogleAuthProvider.credential(idToken, accessToken);
         const result = await signInWithCredential(auth, credential);
         await handleUserRegistration(result.user);
     };

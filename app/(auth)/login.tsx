@@ -21,6 +21,7 @@ export default function LoginScreen() {
         : makeRedirectUri();
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+        clientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
         webClientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
         androidClientId: '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com',
         scopes: ['openid', 'profile', 'email'],
@@ -38,11 +39,16 @@ export default function LoginScreen() {
                 if (request) {
                     const result = await promptAsync();
                     if (result.type === 'success') {
-                        const idToken = result.authentication?.idToken || (result.params && result.params.id_token);
-                        if (!idToken) {
-                            throw new Error("No ID token received from Google.");
+                        const idToken = result.authentication?.idToken || (result.params && result.params.id_token) || null;
+                        const accessToken = result.authentication?.accessToken || (result.params && result.params.access_token) || null;
+
+                        if (!idToken && !accessToken) {
+                            Alert.alert("Debug Info", JSON.stringify(result, null, 2));
+                            throw new Error("No authentication tokens received from Google.");
                         }
-                        await loginWithGoogleCredential(idToken);
+                        await loginWithGoogleCredential(idToken, accessToken);
+                    } else {
+                        Alert.alert("Login Result Type", result.type);
                     }
                 }
             }
