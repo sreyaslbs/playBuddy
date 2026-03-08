@@ -16,8 +16,7 @@ export default function LoginScreen() {
     // Setup for Native Google login
     const [request, response, promptAsync] = Google.useAuthRequest({
         webClientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
-        androidClientId: 'GOOGLE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-        iosClientId: 'GOOGLE_IOS_CLIENT_ID.apps.googleusercontent.com',
+        androidClientId: '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com',
         scopes: ['openid', 'profile', 'email'],
     });
 
