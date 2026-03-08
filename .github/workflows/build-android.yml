@@ -25,6 +25,12 @@ jobs:
           eas: true
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: 🏗 Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: 📦 Install dependencies
         run: npm install
 
@@ -37,5 +43,12 @@ jobs:
           echo "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}" >> .env
           echo "EXPO_PUBLIC_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}" >> .env
 
-      - name: 🚀 Build APK
-        run: npx eas-cli build --platform android --profile preview --non-interactive
+      - name: 🚀 Build APK Locally
+        run: npx eas-cli build --platform android --profile preview --local --non-interactive --output=./playbuddy.apk
+
+      - name: 📤 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playbuddy-android-apk
+          path: ./playbuddy.apk
+          retention-days: 7
