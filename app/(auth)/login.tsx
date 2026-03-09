@@ -42,8 +42,7 @@ export default function LoginScreen() {
                         const accessToken = result.authentication?.accessToken || (result.params && result.params.access_token) || null;
 
                         if (!idToken && !accessToken) {
-                            Alert.alert("Debug Info", JSON.stringify(result, null, 2));
-                            throw new Error("No authentication tokens received from Google.");
+                            throw new Error("No tokens. Payload: " + JSON.stringify(result));
                         }
                         await loginWithGoogleCredential(idToken, accessToken);
                     } else {
