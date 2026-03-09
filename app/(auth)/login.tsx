@@ -14,11 +14,8 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const { loginWithGooglePopup, loginWithGoogleCredential } = useAuth();
 
-    // Google Android Client IDs require a very specific redirect URI format
-    // when using web-based OAuth flows.
-    const redirectUri = Platform.OS === 'android'
-        ? 'com.sreyaslbs.playbuddy:/oauth2redirect'
-        : makeRedirectUri();
+    // Let expo-auth-session handle the redirect URI automatically
+    const redirectUri = makeRedirectUri();
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
