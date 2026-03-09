@@ -14,8 +14,10 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const { loginWithGooglePopup, loginWithGoogleCredential } = useAuth();
 
-    // Let expo-auth-session handle the redirect URI automatically
-    const redirectUri = makeRedirectUri();
+    // Force the redirect URI to use the Android Package Name scheme that Google explicitly authorizes
+    const redirectUri = makeRedirectUri({
+        scheme: 'com.sreyaslbs.playbuddy'
+    });
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
