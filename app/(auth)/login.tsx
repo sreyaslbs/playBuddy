@@ -49,9 +49,11 @@ export default function LoginScreen() {
                             await loginWithGoogleCredential(idToken, accessToken);
                         } else if (result.params?.code) {
                             // Google returned Authorization Code — exchange it for real tokens
+                            // IMPORTANT: Use ANDROID_CLIENT_ID here, not WEB_CLIENT_ID.
+                            // Android client IDs use PKCE and DON'T require a client_secret.
                             const tokenResponse = await exchangeCodeAsync(
                                 {
-                                    clientId: WEB_CLIENT_ID,
+                                    clientId: ANDROID_CLIENT_ID,
                                     code: result.params.code,
                                     redirectUri,
                                     extraParams: request.codeVerifier
