@@ -1,4 +1,4 @@
-import { makeRedirectUri } from 'expo-auth-session';
+import { exchangeCodeAsync, makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { LogIn, Trophy } from 'lucide-react-native';
@@ -10,6 +10,9 @@ import { useAuth } from '../../context/AuthContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
+const WEB_CLIENT_ID = '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com';
+const ANDROID_CLIENT_ID = '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com';
+
 export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const { loginWithGooglePopup, loginWithGoogleCredential } = useAuth();
@@ -20,9 +23,9 @@ export default function LoginScreen() {
     });
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-        clientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
-        webClientId: '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.googleusercontent.com',
-        androidClientId: '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com',
+        clientId: WEB_CLIENT_ID,
+        webClientId: WEB_CLIENT_ID,
+        androidClientId: ANDROID_CLIENT_ID,
         scopes: ['openid', 'profile', 'email'],
         redirectUri,
     });
@@ -32,21 +35,39 @@ export default function LoginScreen() {
         try {
             if (Platform.OS === 'web') {
                 await loginWithGooglePopup();
-                // AuthContext updates state, RootLayout handles redirect
             } else {
                 // For Mobile (Native)
                 if (request) {
                     const result = await promptAsync();
                     if (result.type === 'success') {
-                        const idToken = result.authentication?.idToken || (result.params && result.params.id_token) || null;
-                        const accessToken = result.authentication?.accessToken || (result.params && result.params.access_token) || null;
+                        // Try idToken from authentication object first (implicit flow)
+                        const idToken = result.authentication?.idToken || result.params?.id_token || null;
+                        const accessToken = result.authentication?.accessToken || result.params?.access_token || null;
 
-                        if (!idToken && !accessToken) {
-                            throw new Error("No tokens. Payload: " + JSON.stringify(result));
+                        if (idToken || accessToken) {
+                            // We got tokens directly — pass them to Firebase
+                            await loginWithGoogleCredential(idToken, accessToken);
+                        } else if (result.params?.code) {
+                            // Google returned Authorization Code — exchange it for real tokens
+                            const tokenResponse = await exchangeCodeAsync(
+                                {
+                                    clientId: WEB_CLIENT_ID,
+                                    code: result.params.code,
+                                    redirectUri,
+                                    extraParams: request.codeVerifier
+                                        ? { code_verifier: request.codeVerifier }
+                                        : undefined,
+                                },
+                                { tokenEndpoint: 'https://oauth2.googleapis.com/token' }
+                            );
+                            const exchangedIdToken = tokenResponse.idToken || null;
+                            const exchangedAccessToken = tokenResponse.accessToken || null;
+                            await loginWithGoogleCredential(exchangedIdToken, exchangedAccessToken);
+                        } else {
+                            throw new Error('No tokens or code received from Google.');
                         }
-                        await loginWithGoogleCredential(idToken, accessToken);
-                    } else {
-                        Alert.alert("Login Result Type", result.type);
+                    } else if (result.type !== 'dismiss') {
+                        Alert.alert('Login cancelled or failed', `Status: ${result.type}`);
                     }
                 }
             }
