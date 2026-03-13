@@ -56,6 +56,9 @@ export interface Booking {
     status: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
     price: number;
     managerId: string;
+    complexId?: string;
+    complexName?: string;
+    bookingType?: 'customer' | 'manager_behalf' | 'maintenance';
 }
 
 interface DataContextType {

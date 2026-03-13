@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Building2, MapPin, Plus, Trash2, Edit2 } from 'lucide-react-native';
+import { Building2, MapPin, Plus, Trash2, Edit2, CalendarRange } from 'lucide-react-native';
 import React from 'react';
 import { Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button } from '../../components/Button';
@@ -98,6 +98,13 @@ export default function ManageCourtsScreen() {
             <View style={styles.courtRight}>
                 <Text style={styles.courtPrice}>₹{court.price}/hr</Text>
                 <View style={styles.actionButtons}>
+                    <TouchableOpacity 
+                        style={styles.reserveBtn}
+                        onPress={() => router.push({ pathname: '/modal/booking', params: { courtId: court.id } })}
+                    >
+                        <CalendarRange size={16} color={Colors.success} />
+                        <Text style={styles.reserveBtnText}>Reserve</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => router.push({ pathname: '/modal/add-court', params: { id: court.id } })}>
                         <Edit2 size={16} color={Colors.primary} />
                     </TouchableOpacity>
@@ -334,6 +341,20 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: Typography.weight.bold,
         color: Colors.primary,
+    },
+    reserveBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: Colors.success + '10',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    reserveBtnText: {
+        fontSize: 12,
+        color: Colors.success,
+        fontWeight: Typography.weight.bold,
     },
     noCourtsText: {
         fontSize: Typography.size.sm,

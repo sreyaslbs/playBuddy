@@ -100,6 +100,8 @@ function RootLayoutNav() {
         <Stack.Screen name="modal/slots" options={{ presentation: 'modal', headerShown: true, title: 'Define Slots' }} />
         <Stack.Screen name="modal/complex-details" options={{ presentation: 'modal', headerShown: true }} />
         <Stack.Screen name="modal/booking" options={{ presentation: 'modal', headerShown: true, title: 'Book a Slot' }} />
+        <Stack.Screen name="modal/past-bookings" options={{ presentation: 'modal', headerShown: true, title: 'Booking History' }} />
+        <Stack.Screen name="modal/select-court" options={{ presentation: 'modal', headerShown: true, title: 'Reserve a Slot' }} />
       </Stack>
     </ThemeProvider>
   );

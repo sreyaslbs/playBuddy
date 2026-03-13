@@ -14,18 +14,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/Styles';
 import { Card } from '../../components/Card';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronRight, Info } from 'lucide-react-native';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, ChevronRight, Info, Wrench, User as UserIcon, Plus } from 'lucide-react-native';
 import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
 
 const { width } = Dimensions.get('window');
 
 export default function BookingModal() {
     const router = useRouter();
     const { courtId } = useLocalSearchParams();
-    const { user } = useAuth();
-    const { courts, availabilityBookings, addBooking, loading } = useData();
+    const { user, role } = useAuth();
+    const isManager = role === 'manager';
+    const { courts, complexes, availabilityBookings, addBooking, loading } = useData();
 
     const court = useMemo(() => courts.find(c => c.id === courtId), [courts, courtId]);
+    const complex = useMemo(() => complexes.find(c => c.id === court?.complexId), [complexes, court]);
 
     // Generate next 7 days for selection
     const dates = useMemo(() => {
@@ -44,7 +47,9 @@ export default function BookingModal() {
     }, []);
 
     const [selectedDate, setSelectedDate] = useState(dates[0].full);
-    const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+    const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
+    const [bookingType, setBookingType] = useState<'customer' | 'manager_behalf' | 'maintenance'>(isManager ? 'manager_behalf' : 'customer');
+    const [guestName, setGuestName] = useState('');
 
     // Filter slots based on manager definition AND existing bookings
     // Filter slots based on manager definition AND existing bookings
@@ -69,7 +74,17 @@ export default function BookingModal() {
 
         console.log(`Booking: Checked ${selectedDate}, found ${existingBookings.length} confirmed/pending bookings`);
 
-        // 3. Mark slots as occupied if they exist in bookings
+        // 3. Mark slots as occupied or past
+        const now = new Date();
+        const currentHour = now.getHours();
+        
+        const [todayDay, todayMonth, todayYear] = [now.getDate(), now.getMonth(), now.getFullYear()];
+        const [selDay, selMonth, selYear] = selectedDate.split('/').map(Number);
+        
+        const isSelectedDateToday = selDay === todayDay && 
+                                  (selMonth - 1) === todayMonth && 
+                                  selYear === todayYear;
+
         return managerSlots.map(slot => {
             const isBooked = existingBookings.some(b => {
                 const bookingTime = b.startTime;
@@ -77,41 +92,74 @@ export default function BookingModal() {
                 const slotTime2 = `${slot.hour.toString().padStart(2, '0')}:00`;
                 return bookingTime === slotTime1 || bookingTime === slotTime2;
             });
+
+            // Slot is in past if date is today and hour is <= current hour
+            const isPast = isSelectedDateToday && slot.hour <= currentHour;
+
             return {
                 ...slot,
-                isBooked
+                isBooked,
+                isPast
             };
         }).sort((a, b) => a.hour - b.hour);
     }, [court, selectedDate, availabilityBookings, courtId]);
 
     const handleConfirmBooking = async () => {
-        if (!user || !court || selectedSlot === null) return;
+        if (!user || !court || selectedSlots.length === 0) return;
+
+        // Final safety check: ensure none of the selected slots are already booked
+        const alreadyBooked = selectedSlots.some(hour => 
+            availableSlots.find(s => s.hour === hour)?.isBooked
+        );
+        
+        if (alreadyBooked) {
+            Alert.alert('Error', 'One or more selected slots are already booked. Please refresh and try again.');
+            return;
+        }
 
         try {
-            const slotHour = selectedSlot;
-            const startTime = `${slotHour}:00`;
-            const endTime = `${slotHour + 1}:00`;
+            // Book each selected slot
+            for (const slotHour of selectedSlots) {
+                const startTime = `${slotHour}:00`;
+                const endTime = `${slotHour + 1}:00`;
 
-            await addBooking({
-                courtId: court.id,
-                courtName: court.name,
-                customerId: user.uid,
-                customerName: user.displayName || 'Guest',
-                managerId: court.managerId,
-                startTime,
-                endTime,
-                date: selectedDate,
-                price: court.price,
-            } as any);
+                await addBooking({
+                    courtId: court.id,
+                    courtName: court.name,
+                    complexId: complex?.id,
+                    complexName: complex?.name,
+                    customerId: bookingType === 'maintenance' ? 'maintenance' : user.uid,
+                    customerName: bookingType === 'customer' 
+                        ? (user.displayName || 'Guest')
+                        : (guestName || (bookingType === 'maintenance' ? 'Maintenance Block' : 'Walk-in Customer')),
+                    managerId: court.managerId,
+                    startTime,
+                    endTime,
+                    date: selectedDate,
+                    price: bookingType === 'maintenance' ? 0 : court.price,
+                    status: 'Confirmed',
+                    bookingType: bookingType
+                } as any);
+            }
 
             Alert.alert(
                 'Success!',
-                `Your booking for ${court.name} at ${startTime} on ${selectedDate} is confirmed.`,
+                bookingType === 'maintenance' 
+                    ? `Court ${court.name} is now blocked for the selected slots.`
+                    : `${selectedSlots.length} booking(s) confirmed for ${court.name} on ${selectedDate}.`,
                 [{ text: 'Great!', onPress: () => router.push('/(tabs)') }]
             );
         } catch (error) {
             Alert.alert('Error', 'Failed to create booking. Please try again.');
         }
+    };
+
+    const toggleSlot = (hour: number) => {
+        setSelectedSlots(prev => 
+            prev.includes(hour) 
+                ? prev.filter(h => h !== hour) 
+                : [...prev, hour].sort((a, b) => a - b)
+        );
     };
 
     if (!court) return null;
@@ -121,6 +169,64 @@ export default function BookingModal() {
             <Stack.Screen options={{ title: 'Select Date & Time', headerShown: true }} />
 
             <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Manager Options */}
+                {isManager && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Manager Controls</Text>
+                        <View style={styles.optionsRow}>
+                            <TouchableOpacity 
+                                style={[styles.optionBtn, bookingType === 'manager_behalf' && styles.activeOptionBtn]}
+                                onPress={() => setBookingType('manager_behalf')}
+                            >
+                                <Plus size={18} color={bookingType === 'manager_behalf' ? Colors.surface : Colors.muted} />
+                                <Text style={[styles.optionBtnText, bookingType === 'manager_behalf' && styles.activeOptionBtnText]}>On Behalf</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.optionBtn, bookingType === 'maintenance' && styles.activeOptionBtn]}
+                                onPress={() => setBookingType('maintenance')}
+                            >
+                                <Wrench size={18} color={bookingType === 'maintenance' ? Colors.surface : Colors.muted} />
+                                <Text style={[styles.optionBtnText, bookingType === 'maintenance' && styles.activeOptionBtnText]}>Maintenance</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.optionBtn, bookingType === 'customer' && styles.activeOptionBtn]}
+                                onPress={() => setBookingType('customer')}
+                            >
+                                <UserIcon size={18} color={bookingType === 'customer' ? Colors.surface : Colors.muted} />
+                                <Text style={[styles.optionBtnText, bookingType === 'customer' && styles.activeOptionBtnText]}>Own Booking</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {bookingType === 'manager_behalf' && (
+                            <View style={{ marginTop: Spacing.md }}>
+                                <Input 
+                                    label="Customer Name"
+                                    placeholder="Enter client name"
+                                    value={guestName}
+                                    onChangeText={setGuestName}
+                                />
+                            </View>
+                        )}
+                        
+                        {bookingType === 'maintenance' && (
+                            <View style={{ marginTop: Spacing.md }}>
+                                <Input 
+                                    label="Reason / Details"
+                                    placeholder="e.g., Cleaning, Repairing light"
+                                    value={guestName}
+                                    onChangeText={setGuestName}
+                                />
+                            </View>
+                        )}
+                        
+                        {bookingType === 'maintenance' && !guestName && (
+                            <Text style={styles.maintenanceInfo}>
+                                This will block the slot for players and set the price to ₹0.
+                            </Text>
+                        )}
+                    </View>
+                )}
+
                 {/* 1. Date Selector */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>1. Choose Date</Text>
@@ -131,7 +237,7 @@ export default function BookingModal() {
                                 style={[styles.dateCard, selectedDate === item.full && styles.selectedDateCard]}
                                 onPress={() => {
                                     setSelectedDate(item.full);
-                                    setSelectedSlot(null);
+                                    setSelectedSlots([]);
                                 }}
                             >
                                 <Text style={[styles.dateDay, selectedDate === item.full && styles.selectedDateText]}>{item.day}</Text>
@@ -149,34 +255,41 @@ export default function BookingModal() {
                         <View style={styles.legend}>
                             <View style={[styles.dot, { backgroundColor: Colors.primary }]} />
                             <Text style={styles.legendText}>Selected</Text>
+                            <View style={[styles.dot, { backgroundColor: Colors.error, marginLeft: 8 }]} />
+                            <Text style={styles.legendText}>Occupied</Text>
                         </View>
                     </View>
 
                     {availableSlots.length > 0 ? (
                         <View style={styles.slotGrid}>
                             {availableSlots.map((slot) => {
-                                const isSelected = selectedSlot === slot.hour;
+                                const isSelected = selectedSlots.includes(slot.hour);
                                 const isOccupied = slot.isBooked;
+                                const isPast = slot.isPast;
+                                const isDisabled = isOccupied || isPast;
 
                                 return (
                                     <TouchableOpacity
                                         key={slot.hour}
-                                        disabled={isOccupied}
+                                        disabled={isDisabled}
                                         style={[
                                             styles.slotButton,
                                             isSelected && styles.selectedSlotButton,
-                                            isOccupied && styles.occupiedSlotButton
+                                            isOccupied && styles.occupiedSlotButton,
+                                            isPast && !isOccupied && styles.pastSlotButton
                                         ]}
-                                        onPress={() => setSelectedSlot(slot.hour)}
+                                        onPress={() => toggleSlot(slot.hour)}
                                     >
                                         <Text style={[
                                             styles.slotText,
                                             isSelected && styles.selectedSlotText,
-                                            isOccupied && styles.occupiedSlotText
+                                            isOccupied && styles.occupiedSlotText,
+                                            isPast && !isOccupied && styles.pastSlotText
                                         ]}>
                                             {slot.hour.toString().padStart(2, '0')}:00
                                         </Text>
                                         {isOccupied && <Text style={styles.occupiedLabel}>Booked</Text>}
+                                        {isPast && !isOccupied && <Text style={styles.pastLabel}>Past</Text>}
                                     </TouchableOpacity>
                                 );
                             })}
@@ -196,7 +309,7 @@ export default function BookingModal() {
                 </View>
 
                 {/* 3. Summary */}
-                {selectedSlot !== null && (
+                {selectedSlots.length > 0 && (
                     <Card style={styles.summaryCard} variant="elevated">
                         <View style={styles.summaryHeader}>
                             <CheckCircle2 size={24} color={Colors.success} />
@@ -211,13 +324,22 @@ export default function BookingModal() {
                             <Text style={styles.summaryValue}>{selectedDate}</Text>
                         </View>
                         <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Time:</Text>
-                            <Text style={styles.summaryValue}>{selectedSlot}:00 - {selectedSlot + 1}:00</Text>
+                            <Text style={styles.summaryLabel}>Slots:</Text>
+                            <Text style={styles.summaryValue}>
+                                {selectedSlots.length} slot(s) selected
+                            </Text>
+                        </View>
+                        <View style={styles.selectedSlotsContainer}>
+                            {selectedSlots.map(s => (
+                                <View key={s} style={styles.slotBadge}>
+                                    <Text style={styles.slotBadgeText}>{s}:00</Text>
+                                </View>
+                            ))}
                         </View>
                         <View style={styles.divider} />
                         <View style={styles.totalRow}>
                             <Text style={styles.totalLabel}>Total Price</Text>
-                            <Text style={styles.totalValue}>₹{court.price}</Text>
+                            <Text style={styles.totalValue}>₹{bookingType === 'maintenance' ? 0 : (court.price * selectedSlots.length)}</Text>
                         </View>
 
                         <Button
@@ -327,9 +449,9 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary,
     },
     occupiedSlotButton: {
-        backgroundColor: Colors.secondary + '05',
-        borderColor: Colors.border,
-        opacity: 0.6,
+        backgroundColor: Colors.error + '10',
+        borderColor: Colors.error,
+        opacity: 0.9,
     },
     slotText: {
         fontSize: 14,
@@ -340,12 +462,26 @@ const styles = StyleSheet.create({
         color: Colors.primary,
     },
     occupiedSlotText: {
-        color: Colors.muted,
-        textDecorationLine: 'line-through',
+        color: Colors.error,
+        textDecorationLine: 'none',
     },
     occupiedLabel: {
         fontSize: 8,
-        color: Colors.danger,
+        color: Colors.error,
+        fontWeight: Typography.weight.bold,
+        marginTop: 2,
+    },
+    pastSlotButton: {
+        backgroundColor: Colors.background,
+        borderColor: Colors.border,
+        opacity: 0.5,
+    },
+    pastSlotText: {
+        color: Colors.muted,
+    },
+    pastLabel: {
+        fontSize: 8,
+        color: Colors.muted,
         fontWeight: Typography.weight.bold,
         marginTop: 2,
     },
@@ -420,5 +556,57 @@ const styles = StyleSheet.create({
     },
     confirmButton: {
         width: '100%',
+    },
+    optionsRow: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+    },
+    optionBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        backgroundColor: Colors.surface,
+    },
+    activeOptionBtn: {
+        backgroundColor: Colors.secondary,
+        borderColor: Colors.secondary,
+    },
+    optionBtnText: {
+        fontSize: 12,
+        fontWeight: Typography.weight.bold,
+        color: Colors.muted,
+    },
+    activeOptionBtnText: {
+        color: Colors.surface,
+    },
+    maintenanceInfo: {
+        fontSize: 12,
+        color: Colors.warning,
+        marginTop: Spacing.sm,
+        fontStyle: 'italic',
+    },
+    selectedSlotsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginTop: Spacing.sm,
+        marginBottom: Spacing.md,
+    },
+    slotBadge: {
+        backgroundColor: Colors.secondary + '15',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    slotBadgeText: {
+        fontSize: 10,
+        fontWeight: Typography.weight.bold,
+        color: Colors.secondary,
     }
 });

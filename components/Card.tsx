@@ -1,19 +1,21 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { Colors, Spacing, BorderRadius } from '../constants/Styles';
 
 interface CardProps {
     children: React.ReactNode;
     style?: ViewStyle;
     variant?: 'elevated' | 'outlined' | 'flat';
+    onPress?: () => void;
 }
 
 export const Card: React.FC<CardProps> = ({
     children,
     style,
     variant = 'elevated',
+    onPress,
 }) => {
-    return (
+    const content = (
         <View
             style={[
                 styles.base,
@@ -26,6 +28,16 @@ export const Card: React.FC<CardProps> = ({
             {children}
         </View>
     );
+
+    if (onPress) {
+        return (
+            <TouchableOpacity onPress={onPress}>
+                {content}
+            </TouchableOpacity>
+        );
+    }
+
+    return content;
 };
 
 const styles = StyleSheet.create({

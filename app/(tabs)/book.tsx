@@ -14,93 +14,97 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/Styles';
 import { Card } from '../../components/Card';
-import { Search, MapPin, Building2, ChevronDown, Check, Star, Navigation, Map } from 'lucide-react-native';
-import { STATES, getCitiesByState } from '../../constants/Locations';
+import { STATES, getCitiesByState, INDIAN_LOCATIONS, CityInfo } from '../../constants/Locations';
 import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { Search, MapPin, Building2, Star, Navigation, X, Heart } from 'lucide-react-native';
 
 export default function BookCourtScreen() {
     const router = useRouter();
     const { metadata, updateUserData } = useAuth();
     const { complexes, courts, loading } = useData();
-
-    const [selectedState, setSelectedState] = useState('');
-    const [selectedCity, setSelectedCity] = useState('');
-    const [hasSearched, setHasSearched] = useState(false);
-
-    const [showStatePicker, setShowStatePicker] = useState(false);
-    const [showCityPicker, setShowCityPicker] = useState(false);
+    
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedLocation, setSelectedLocation] = useState<CityInfo | null>(null);
+    const [suggestions, setSuggestions] = useState<CityInfo[]>([]);
 
     // Initialize with default location from metadata
     useEffect(() => {
-        if (metadata?.defaultState) setSelectedState(metadata.defaultState);
-        if (metadata?.defaultCity) {
-            setSelectedCity(metadata.defaultCity);
-            setHasSearched(true); // Auto-show results for default city
+        if (metadata?.defaultCity && metadata?.defaultState && !selectedLocation) {
+            const loc = { city: metadata.defaultCity, state: metadata.defaultState };
+            setSelectedLocation(loc);
+            setSearchQuery(loc.city);
         }
     }, [metadata]);
 
-    const availableCities = useMemo(() => {
-        return selectedState ? getCitiesByState(selectedState) : [];
-    }, [selectedState]);
+    // Handle Search Input Change
+    const handleSearchChange = (text: string) => {
+        setSearchQuery(text);
+        if (text.length >= 3) {
+            const query = text.toLowerCase();
+            const filtered = INDIAN_LOCATIONS.filter(loc => 
+                loc.city.toLowerCase().includes(query) || 
+                loc.state.toLowerCase().includes(query)
+            ).slice(0, 5); 
+            setSuggestions(filtered);
+        } else {
+            setSuggestions([]);
+        }
+    };
+
+    const handleSelectLocation = (loc: CityInfo) => {
+        setSelectedLocation(loc);
+        setSearchQuery(loc.city);
+        setSuggestions([]);
+    };
+
+    const clearSearch = () => {
+        setSearchQuery('');
+        setSelectedLocation(null);
+        setSuggestions([]);
+    };
 
     // Memoized filtered complexes
     const searchedComplexes = useMemo(() => {
-        if (!hasSearched || !selectedCity) return [];
-        return complexes.filter(c => c.city === selectedCity);
-    }, [complexes, selectedCity, hasSearched]);
-
-    const handleSearch = () => {
-        if (!selectedCity) return;
-        setHasSearched(true);
-    };
+        if (!selectedLocation) return [];
+        return complexes.filter(c => 
+            c.city === selectedLocation.city && 
+            c.state === selectedLocation.state
+        );
+    }, [complexes, selectedLocation]);
 
     const handleSetDefault = async () => {
-        if (!selectedState || !selectedCity) {
-            Alert.alert('Error', 'Please select both State and City first.');
-            return;
-        }
+        if (!selectedLocation) return;
         try {
             await updateUserData({
-                defaultState: selectedState,
-                defaultCity: selectedCity
+                defaultState: selectedLocation.state,
+                defaultCity: selectedLocation.city
             });
-            Alert.alert('Success', 'Default location updated!');
+            Alert.alert(
+                'Home City Updated',
+                `${selectedLocation.city} is now your default location.`,
+                [{ text: 'OK' }]
+            );
         } catch (error) {
             Alert.alert('Error', 'Failed to save defaults.');
         }
     };
 
-    const SelectionModal = ({ visible, onClose, data, onSelect, title, current }: any) => (
-        <Modal visible={visible} animationType="slide" transparent>
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>{title}</Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Text style={styles.closeText}>Close</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <FlatList
-                        data={data}
-                        keyExtractor={(item) => item}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={[styles.optionItem, current === item && styles.activeOption]}
-                                onPress={() => {
-                                    onSelect(item);
-                                    onClose();
-                                }}
-                            >
-                                <Text style={[styles.optionText, current === item && styles.activeOptionText]}>{item}</Text>
-                                {current === item && <Check size={18} color={Colors.primary} />}
-                            </TouchableOpacity>
-                        )}
-                        contentContainerStyle={styles.listContent}
-                    />
-                </View>
-            </View>
-        </Modal>
-    );
+    const isCurrentDefault = metadata?.defaultCity === selectedLocation?.city && metadata?.defaultState === selectedLocation?.state;
+
+    const toggleFavorite = async (complexId: string) => {
+        const currentFavorites = metadata?.favorites || [];
+        const isFav = currentFavorites.includes(complexId);
+        const newFavorites = isFav 
+            ? currentFavorites.filter(id => id !== complexId)
+            : [...currentFavorites, complexId];
+        
+        try {
+            await updateUserData({ favorites: newFavorites });
+        } catch (error) {
+            Alert.alert('Error', 'Failed to update favorites');
+        }
+    };
 
     const renderComplexItem = ({ item: complex }: { item: any }) => {
         const types = Array.from(new Set(courts.filter(c => c.complexId === complex.id).map(c => c.type)));
@@ -123,9 +127,21 @@ export default function BookCourtScreen() {
                                 <Text style={styles.locationDetails}>{complex.landmark}, {complex.city}</Text>
                             </View>
                         </View>
-                        <View style={styles.ratingBox}>
-                            <Star size={12} color={Colors.accent} fill={Colors.accent} />
-                            <Text style={styles.ratingText}>5.0</Text>
+                        <View style={styles.rightHeaderColumn}>
+                            <View style={styles.ratingBox}>
+                                <Star size={12} color={Colors.accent} fill={Colors.accent} />
+                                <Text style={styles.ratingText}>5.0</Text>
+                            </View>
+                            <TouchableOpacity 
+                                onPress={() => toggleFavorite(complex.id)}
+                                style={styles.favoriteButton}
+                            >
+                                <Heart 
+                                    size={20} 
+                                    color={metadata?.favorites?.includes(complex.id) ? Colors.error : Colors.muted} 
+                                    fill={metadata?.favorites?.includes(complex.id) ? Colors.error : 'transparent'} 
+                                />
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -144,15 +160,21 @@ export default function BookCourtScreen() {
                         </View>
                     </View>
 
-                    <Button
-                        title="View Courts"
-                        onPress={() => router.push({
-                            pathname: '/modal/complex-details',
-                            params: { complexId: complex.id }
-                        })}
-                        variant="secondary"
-                        style={styles.viewButton}
-                    />
+                    <View style={styles.footerRow}>
+                        <View style={styles.addressContainer}>
+                            <Text style={styles.addressLabel}>Neighborhood</Text>
+                            <Text style={styles.addressText} numberOfLines={1}>{complex.landmark || complex.city}</Text>
+                        </View>
+                        <Button
+                            title="View Hub"
+                            onPress={() => router.push({
+                                pathname: '/modal/complex-details',
+                                params: { complexId: complex.id }
+                            })}
+                            variant="secondary"
+                            style={styles.viewButton}
+                        />
+                    </View>
                 </View>
             </Card>
         );
@@ -161,91 +183,80 @@ export default function BookCourtScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>Find Courts</Text>
-
-                <View style={styles.filterSection}>
-                    <View style={styles.row}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.inputLabel}>State</Text>
-                            <TouchableOpacity
-                                style={styles.pickerButton}
-                                onPress={() => setShowStatePicker(true)}
-                            >
-                                <Text style={[styles.pickerText, !selectedState && styles.placeholderText]}>
-                                    {selectedState || 'Select State'}
-                                </Text>
-                                <ChevronDown size={18} color={Colors.muted} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.inputLabel}>City</Text>
-                            <TouchableOpacity
-                                style={[styles.pickerButton, !selectedState && styles.disabledPicker]}
-                                onPress={() => selectedState && setShowCityPicker(true)}
-                            >
-                                <Text style={[styles.pickerText, !selectedCity && styles.placeholderText]}>
-                                    {selectedCity || 'Select City'}
-                                </Text>
-                                <ChevronDown size={18} color={Colors.muted} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.defaultLink} onPress={handleSetDefault}>
-                            <MapPin size={14} color={Colors.primary} />
-                            <Text style={styles.defaultLinkText}>Set as Default Location</Text>
+                <View style={styles.titleRow}>
+                    <Text style={styles.title}>Find Courts</Text>
+                    {selectedLocation && (
+                        <TouchableOpacity 
+                            style={[styles.defaultBadge, isCurrentDefault && styles.defaultBadgeActive]} 
+                            onPress={handleSetDefault}
+                            disabled={isCurrentDefault}
+                        >
+                            <MapPin size={12} color={isCurrentDefault ? Colors.success : Colors.primary} />
+                            <Text style={[styles.defaultBadgeText, isCurrentDefault && styles.defaultBadgeTextActive]}>
+                                {isCurrentDefault ? 'Your Home City' : `Set as Home City`}
+                            </Text>
                         </TouchableOpacity>
+                    )}
+                </View>
 
-                        <Button
-                            title="Search"
-                            onPress={() => handleSearch()}
-                            style={styles.searchButton}
-                            disabled={!selectedCity}
+                <View style={styles.searchBarContainer}>
+                    <View style={styles.inputWrapper}>
+                        <Input
+                            placeholder="Type city or state..."
+                            value={searchQuery}
+                            onChangeText={handleSearchChange}
+                            icon={<Search size={20} color={Colors.muted} />}
+                            containerStyle={styles.searchInput}
                         />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity style={styles.clearButton} onPress={clearSearch}>
+                                <X size={18} color={Colors.muted} />
+                            </TouchableOpacity>
+                        )}
                     </View>
+
+                    {suggestions.length > 0 && (
+                        <View style={styles.suggestionsList}>
+                            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 250 }}>
+                                {suggestions.map((loc, idx) => (
+                                    <TouchableOpacity 
+                                        key={`${loc.city}-${idx}`} 
+                                        style={styles.suggestionItem}
+                                        onPress={() => handleSelectLocation(loc)}
+                                    >
+                                        <MapPin size={16} color={Colors.muted} />
+                                        <View style={styles.suggestionTextContainer}>
+                                            <Text style={styles.suggestionCity}>{loc.city}</Text>
+                                            <Text style={styles.suggestionState}>{loc.state}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
                 </View>
             </View>
 
-            <FlatList
-                data={searchedComplexes}
-                renderItem={renderComplexItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    !loading && hasSearched && (
+            {suggestions.length === 0 && (
+                <FlatList
+                    keyboardShouldPersistTaps="handled"
+                    data={searchedComplexes}
+                    renderItem={renderComplexItem}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Building2 size={48} color={Colors.border} />
                             <Text style={styles.emptyText}>
-                                {selectedCity ? `No complexes found in ${selectedCity}` : 'Search by city to find sports hubs'}
+                                {!selectedLocation 
+                                    ? 'Search and select a city to discover the best courts around you.' 
+                                    : `No sports hubs found in ${selectedLocation.city} currently. Try searching another city!`}
                             </Text>
                         </View>
-                    )
-                }
-            />
-
-            <SelectionModal
-                visible={showStatePicker}
-                onClose={() => setShowStatePicker(false)}
-                data={STATES}
-                onSelect={(state: string) => {
-                    setSelectedState(state);
-                    setSelectedCity('');
-                }}
-                title="Select State"
-                current={selectedState}
-            />
-
-            <SelectionModal
-                visible={showCityPicker}
-                onClose={() => setShowCityPicker(false)}
-                data={availableCities}
-                onSelect={setSelectedCity}
-                title="Select City"
-                current={selectedCity}
-            />
+                    }
+                />
+            )}
         </View>
     );
 }
@@ -266,62 +277,94 @@ const styles = StyleSheet.create({
         fontSize: Typography.size.xxl,
         fontWeight: Typography.weight.bold,
         color: Colors.secondary,
-        marginBottom: Spacing.lg,
     },
-    filterSection: {
-        gap: Spacing.md,
-    },
-    inputLabel: {
-        fontSize: 12,
-        fontWeight: Typography.weight.bold,
-        color: Colors.muted,
-        marginBottom: 4,
-        textTransform: 'uppercase',
-    },
-    row: {
-        flexDirection: 'row',
-        gap: Spacing.md,
-    },
-    pickerButton: {
-        height: 44,
-        backgroundColor: Colors.background,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: Spacing.md,
-    },
-    disabledPicker: {
-        opacity: 0.5,
-    },
-    pickerText: {
-        fontSize: 14,
-        color: Colors.secondary,
-    },
-    placeholderText: {
-        color: Colors.muted,
-    },
-    actionRow: {
+    titleRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: Spacing.xs,
+        marginBottom: Spacing.md,
     },
-    defaultLink: {
+    defaultBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: Colors.primary + '10',
+        borderWidth: 1,
+        borderColor: Colors.primary + '20',
     },
-    defaultLinkText: {
+    defaultBadgeActive: {
+        backgroundColor: Colors.success + '10',
+        borderColor: Colors.success + '20',
+    },
+    defaultBadgeText: {
         fontSize: 12,
-        color: Colors.primary,
         fontWeight: Typography.weight.bold,
+        color: Colors.primary,
     },
-    searchButton: {
-        minHeight: 40,
-        paddingHorizontal: Spacing.xl,
+    defaultBadgeTextActive: {
+        color: Colors.success,
+    },
+    searchBarContainer: {
+        marginTop: Spacing.xs,
+        position: 'relative',
+        zIndex: 10,
+    },
+    inputWrapper: {
+        position: 'relative',
+    },
+    clearButton: {
+        position: 'absolute',
+        right: 12,
+        top: 17,
+        zIndex: 2,
+    },
+    suggestionsList: {
+        position: 'absolute',
+        top: 54,
+        left: 0,
+        right: 0,
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        zIndex: 100,
+    },
+    suggestionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: Spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+        gap: Spacing.md,
+    },
+    suggestionTextContainer: {
+        flex: 1,
+    },
+    suggestionCity: {
+        fontSize: 14,
+        fontWeight: Typography.weight.bold,
+        color: Colors.secondary,
+    },
+    suggestionState: {
+        fontSize: 12,
+        color: Colors.muted,
+    },
+    searchInput: {
+        marginBottom: 0,
+    },
+    footerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: Spacing.md,
     },
     listContent: {
         padding: Spacing.lg,
@@ -377,6 +420,13 @@ const styles = StyleSheet.create({
         fontWeight: Typography.weight.bold,
         color: Colors.secondary,
     },
+    rightHeaderColumn: {
+        alignItems: 'flex-end',
+        gap: Spacing.sm,
+    },
+    favoriteButton: {
+        padding: 4,
+    },
     divider: {
         height: 1,
         backgroundColor: Colors.border,
@@ -414,8 +464,22 @@ const styles = StyleSheet.create({
         color: Colors.muted,
         fontStyle: 'italic',
     },
+    addressContainer: {
+        flex: 2,
+    },
+    addressLabel: {
+        fontSize: 10,
+        color: Colors.muted,
+        marginBottom: 2,
+    },
+    addressText: {
+        fontSize: 12,
+        fontWeight: Typography.weight.semiBold,
+        color: Colors.secondary,
+    },
     viewButton: {
-        width: '100%',
+        flex: 1,
+        minHeight: 44,
     },
     emptyContainer: {
         alignItems: 'center',

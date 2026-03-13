@@ -17,6 +17,7 @@ interface UserMetadata {
     defaultState?: string;
     displayName?: string;
     email?: string;
+    favorites?: string[]; // Array of complex IDs
 }
 
 interface AuthContextType {

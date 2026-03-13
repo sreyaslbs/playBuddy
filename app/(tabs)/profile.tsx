@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { useAuth } from '../../context/AuthContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/Styles';
 import { Card } from '../../components/Card';
-import { User, Settings, CreditCard, Bell, LogOut, ChevronRight, Plus, Building2 } from 'lucide-react-native';
+import { User, Settings, CreditCard, Bell, LogOut, ChevronRight, Plus, Building2, History } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
@@ -48,6 +48,17 @@ export default function ProfileScreen() {
                     </Card>
                 </View>
             )}
+
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>My Activity</Text>
+                <Card style={styles.card} variant="outlined">
+                    <ProfileItem 
+                        icon={History} 
+                        label="Past Bookings" 
+                        onPress={() => router.push('/modal/past-bookings')}
+                    />
+                </Card>
+            </View>
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Account Settings</Text>
