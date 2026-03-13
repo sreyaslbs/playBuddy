@@ -16,23 +16,45 @@ export default function DashboardScreen() {
 
   const upcomingBookings = useMemo(() => {
     const now = new Date();
-    // Use system time to filter out sessions that have already ended
-    return bookings.filter(b => {
-      // Assuming date is DD/MM/YYYY
+    
+    // 1. Filter out past bookings and sort
+    const active = bookings.filter(b => {
       const [day, month, year] = b.date.split('/').map(Number);
       const bookingEnd = new Date(year, month - 1, day);
-      
-      // Extract hour from endTime (e.g., "14:00")
       const endHour = parseInt(b.endTime?.split(':')[0] || '0', 10);
       bookingEnd.setHours(endHour || 0, 0, 0, 0);
-      
       return bookingEnd > now;
     }).sort((a, b) => {
-        // Sort upcoming sessions chronologically
-        const dateA = a.date.split('/').reverse().join('') + a.startTime;
-        const dateB = b.date.split('/').reverse().join('') + b.startTime;
+        const dateA = a.date.split('/').reverse().join('') + a.courtId + a.startTime.padStart(5, '0');
+        const dateB = b.date.split('/').reverse().join('') + b.courtId + b.startTime.padStart(5, '0');
         return dateA.localeCompare(dateB);
     });
+
+    // 2. Group consecutive bookings
+    const grouped: any[] = [];
+    active.forEach(booking => {
+        if (grouped.length === 0) {
+            grouped.push({ ...booking });
+            return;
+        }
+
+        const last = grouped[grouped.length - 1];
+        const isConsecutive = last.date === booking.date && 
+                             last.courtId === booking.courtId && 
+                             last.endTime === booking.startTime &&
+                             last.customerId === booking.customerId;
+
+        if (isConsecutive) {
+            last.endTime = booking.endTime;
+            last.price = Number(last.price || 0) + Number(booking.price || 0);
+            last.isGrouped = true;
+            last.id = `${last.id}-${booking.id}`;
+        } else {
+            grouped.push({ ...booking });
+        }
+    });
+
+    return grouped;
   }, [bookings]);
 
   const favoriteComplexes = useMemo(() => {
@@ -131,7 +153,7 @@ export default function DashboardScreen() {
           </View>
           <View style={styles.infoRow}>
             <Clock size={14} color={Colors.muted} />
-            <Text style={styles.infoText}>{item.startTime}</Text>
+            <Text style={styles.infoText}>{item.startTime} - {item.endTime}</Text>
           </View>
         </View>
       </Card>
@@ -159,8 +181,8 @@ export default function DashboardScreen() {
                 </Text>
                 <Text style={styles.bannerMessage}>
                     {isManager 
-                      ? `Next session at ${nextTodayBooking.startTime} for ${nextTodayBooking.courtName}`
-                      : `You have a booking at ${nextTodayBooking.startTime} for ${nextTodayBooking.courtName}`
+                      ? `Next: ${nextTodayBooking.startTime}-${nextTodayBooking.endTime} for ${nextTodayBooking.courtName}`
+                      : `You have a booking at ${nextTodayBooking.startTime}-${nextTodayBooking.endTime} for ${nextTodayBooking.courtName}`
                     }
                 </Text>
             </View>

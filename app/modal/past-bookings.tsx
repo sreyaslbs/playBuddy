@@ -11,23 +11,49 @@ export default function PastBookingsModal() {
     const { bookings, complexes, courts } = useData();
     const { user } = useAuth();
 
-    const pastBookings = useMemo(() => {
+     const pastBookings = useMemo(() => {
         const now = new Date();
-        // Filter to only show bookings that have already ended
-        return bookings.filter(b => {
+        
+        // 1. Filter and sort by ASC so we can group forward
+        const filtered = bookings.filter(b => {
              const [day, month, year] = b.date.split('/').map(Number);
              const bookingEnd = new Date(year, month - 1, day);
-             
-             // Extract hour from endTime (e.g., "14:00")
              const endHour = parseInt(b.endTime?.split(':')[0] || '0', 10);
              bookingEnd.setHours(endHour || 0, 0, 0, 0);
-             
              return bookingEnd <= now;
         }).sort((a, b) => {
-            const dateA = a.date.split('/').reverse().join('') + a.startTime;
-            const dateB = b.date.split('/').reverse().join('') + b.startTime;
-            return dateB.localeCompare(dateA);
+            const dateA = a.date.split('/').reverse().join('') + a.courtId + a.startTime.padStart(5, '0');
+            const dateB = b.date.split('/').reverse().join('') + b.courtId + b.startTime.padStart(5, '0');
+            return dateA.localeCompare(dateB);
         });
+
+        // 2. Group consecutive
+        const grouped: any[] = [];
+        filtered.forEach(booking => {
+            if (grouped.length === 0) {
+                grouped.push({ ...booking });
+                return;
+            }
+
+            const last = grouped[grouped.length - 1];
+            const isConsecutive = last.date === booking.date && 
+                                 last.courtId === booking.courtId && 
+                                 last.endTime === booking.startTime &&
+                                 last.customerId === booking.customerId &&
+                                 last.status === booking.status;
+
+            if (isConsecutive) {
+                last.endTime = booking.endTime;
+                last.price = Number(last.price || 0) + Number(booking.price || 0);
+                last.isGrouped = true;
+                last.id = `${last.id}-${booking.id}`;
+            } else {
+                grouped.push({ ...booking });
+            }
+        });
+
+        // 3. Reverse to show most recent first
+        return grouped.reverse();
     }, [bookings]);
 
     const renderBookingItem = ({ item }: { item: any }) => {
@@ -72,7 +98,7 @@ export default function PastBookingsModal() {
                     </View>
                     <View style={styles.detailItem}>
                         <Clock size={14} color={Colors.muted} />
-                        <Text style={styles.detailText}>{item.startTime}</Text>
+                        <Text style={styles.detailText}>{item.startTime} - {item.endTime}</Text>
                     </View>
                     <View style={styles.detailItem}>
                         <Text style={styles.priceText}>₹{item.price}</Text>
