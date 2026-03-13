@@ -11,7 +11,7 @@ import {
     Modal,
     FlatList
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useData } from '../../context/DataContext';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/Styles';
 import { Input } from '../../components/Input';
@@ -21,13 +21,19 @@ import { STATES, getCitiesByState } from '../../constants/Locations';
 
 export default function AddComplexModal() {
     const router = useRouter();
-    const { addComplex } = useData();
+    const { id } = useLocalSearchParams();
+    const { complexes, addComplex, updateComplex } = useData();
 
-    const [name, setName] = useState('');
-    const [address, setAddress] = useState('');
-    const [landmark, setLandmark] = useState('');
-    const [selectedState, setSelectedState] = useState('');
-    const [selectedCity, setSelectedCity] = useState('');
+    const isEditing = !!id;
+    const existingComplex = useMemo(() => {
+        return isEditing ? complexes.find(c => c.id === id) : null;
+    }, [id, complexes]);
+
+    const [name, setName] = useState(existingComplex?.name || '');
+    const [address, setAddress] = useState(existingComplex?.address || '');
+    const [landmark, setLandmark] = useState(existingComplex?.landmark || '');
+    const [selectedState, setSelectedState] = useState(existingComplex?.state || '');
+    const [selectedCity, setSelectedCity] = useState(existingComplex?.city || '');
     const [loading, setLoading] = useState(false);
 
     const [showStatePicker, setShowStatePicker] = useState(false);
@@ -45,16 +51,26 @@ export default function AddComplexModal() {
 
         setLoading(true);
         try {
-            await addComplex({
-                name,
-                address,
-                landmark,
-                state: selectedState,
-                city: selectedCity,
-            });
+            if (isEditing && id) {
+                await updateComplex(id as string, {
+                    name,
+                    address,
+                    landmark,
+                    state: selectedState,
+                    city: selectedCity,
+                });
+            } else {
+                await addComplex({
+                    name,
+                    address,
+                    landmark,
+                    state: selectedState,
+                    city: selectedCity,
+                });
+            }
             router.back();
         } catch (error: any) {
-            Alert.alert('Error', 'Failed to add complex. Please try again.');
+            Alert.alert('Error', `Failed to ${isEditing ? 'update' : 'add'} complex. Please try again.`);
         } finally {
             setLoading(false);
         }
@@ -99,8 +115,10 @@ export default function AddComplexModal() {
         >
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Add Sports Complex</Text>
-                    <Text style={styles.subtitle}>Define the location where your courts are located.</Text>
+                    <Text style={styles.title}>{isEditing ? 'Edit' : 'Add'} Sports Complex</Text>
+                    <Text style={styles.subtitle}>
+                        {isEditing ? 'Update the details of your sports complex.' : 'Define the location where your courts are located.'}
+                    </Text>
                 </View>
 
                 <View style={styles.form}>
@@ -157,7 +175,7 @@ export default function AddComplexModal() {
                     </View>
 
                     <Button
-                        title={loading ? "Creating..." : "Save Complex"}
+                        title={loading ? (isEditing ? "Updating..." : "Creating...") : "Save Complex"}
                         onPress={handleSubmit}
                         loading={loading}
                         style={styles.submitButton}

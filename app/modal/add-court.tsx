@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -22,17 +22,22 @@ const COURT_TYPES = ['Turf', 'Multipurpose', 'Badminton', 'Tennis', 'Basketball'
 
 export default function AddCourtModal() {
     const router = useRouter();
-    const { complexId: initialComplexId } = useLocalSearchParams();
-    const { complexes, addCourt } = useData();
+    const { complexId: initialComplexId, id } = useLocalSearchParams();
+    const { complexes, courts, addCourt, updateCourt } = useData();
 
-    const [name, setName] = useState('');
-    const [type, setType] = useState(COURT_TYPES[0]);
-    const [price, setPrice] = useState('');
-    const [description, setDescription] = useState('');
-    const [complexId, setComplexId] = useState(initialComplexId as string || '');
+    const isEditing = !!id;
+    const existingCourt = useMemo(() => {
+        return isEditing ? courts.find(c => c.id === id) : null;
+    }, [id, courts]);
+
+    const [name, setName] = useState(existingCourt?.name || '');
+    const [type, setType] = useState(existingCourt?.type || COURT_TYPES[0]);
+    const [price, setPrice] = useState(existingCourt?.price?.toString() || '');
+    const [description, setDescription] = useState(existingCourt?.description || '');
+    const [complexId, setComplexId] = useState(existingCourt?.complexId || initialComplexId as string || '');
     const [loading, setLoading] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Get params
     const params = useLocalSearchParams();
     const {
         slots: slotParam,
@@ -43,41 +48,95 @@ export default function AddCourtModal() {
         complexId: complexIdParam
     } = params;
 
-    const selectedSlots = slotParam ? JSON.parse(slotParam as string) : [];
+    const [selectedSlots, setSelectedSlots] = useState<any[]>([]);
 
-    // Sync state from params (when returning from slots modal)
+    // Sync slots from params or existing court
+    useEffect(() => {
+        if (slotParam) {
+            try {
+                setSelectedSlots(JSON.parse(slotParam as string));
+            } catch (e) {
+                console.error("Error parsing slots param", e);
+            }
+        } else if (existingCourt?.slots) {
+            setSelectedSlots(existingCourt.slots);
+        }
+    }, [slotParam, existingCourt]);
+
+    // 1. Sync state when editing an existing court (important if data loads after initial mount)
+    useEffect(() => {
+        if (existingCourt) {
+            setName(existingCourt.name);
+            setType(existingCourt.type);
+            setPrice(existingCourt.price.toString());
+            setDescription(existingCourt.description || '');
+            setComplexId(existingCourt.complexId);
+        }
+    }, [existingCourt]);
+
+    // 2. Sync state from params (when returning from slots modal or first mount)
     useEffect(() => {
         if (nameParam) setName(nameParam as string);
         if (typeParam) setType(typeParam as string);
         if (priceParam) setPrice(priceParam as string);
         if (descriptionParam) setDescription(descriptionParam as string);
         if (complexIdParam) setComplexId(complexIdParam as string);
-    }, [nameParam, typeParam, priceParam, descriptionParam, complexIdParam]);
+        else if (initialComplexId) setComplexId(initialComplexId as string);
+    }, [nameParam, typeParam, priceParam, descriptionParam, complexIdParam, initialComplexId]);
 
     const [showComplexPicker, setShowComplexPicker] = useState(false);
     const [showTypePicker, setShowTypePicker] = useState(false);
 
-    const selectedComplex = complexes.find(c => c.id === (complexId || complexIdParam));
+    const selectedComplex = useMemo(() => {
+        return complexes.find(c => c.id === complexId);
+    }, [complexes, complexId]);
 
     const handleSubmit = async () => {
-        if (!name || !price || !complexId || !type) {
-            Alert.alert('Error', 'Please fill in all mandatory fields (Complex, Court Name, Type, Price).');
+        console.log('[DEBUG] AddCourtModal: handleSubmit called');
+        
+        const newErrors: Record<string, string> = {};
+        if (!name) newErrors.name = 'Court name is required';
+        if (!price) newErrors.price = 'Price is required';
+        if (!complexId) newErrors.complexId = 'Complex is required';
+        if (!type) newErrors.type = 'Type is required';
+
+        setErrors(newErrors);
+
+        if (Object.keys(newErrors).length > 0) {
+            console.log('[DEBUG] Validation failed:', newErrors);
+            Alert.alert('Missing Info', 'Please fill in all mandatory fields highlighted in red.');
             return;
         }
 
         setLoading(true);
         try {
-            await addCourt({
-                complexId,
-                name,
-                type,
-                price: parseFloat(price),
-                description,
-                slots: selectedSlots, // Save slots
-            });
+            if (isEditing && id) {
+                console.log('[DEBUG] Calling updateCourt for ID:', id);
+                await updateCourt(id as string, {
+                    complexId,
+                    name,
+                    type,
+                    price: parseFloat(price),
+                    description,
+                    slots: selectedSlots,
+                });
+            } else {
+                console.log('[DEBUG] Calling addCourt');
+                await addCourt({
+                    complexId,
+                    name,
+                    type,
+                    price: parseFloat(price),
+                    description,
+                    slots: selectedSlots, // Save slots
+                });
+            }
+            console.log('[DEBUG] Success, navigating to courts tab');
+            // Use replace to ensure we don't 'go back' into the modal stack
             router.replace('/(tabs)/courts');
         } catch (error: any) {
-            Alert.alert('Error', 'Failed to add court. Please try again.');
+            console.error('[DEBUG] Error in handleSubmit:', error);
+            Alert.alert('Error', `Failed to ${isEditing ? 'update' : 'add'} court: ${error?.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -127,36 +186,41 @@ export default function AddCourtModal() {
         >
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Add New Court</Text>
-                    <Text style={styles.subtitle}>Define a court within your sports complex.</Text>
+                    <Text style={styles.title}>{isEditing ? 'Edit' : 'Add New'} Court</Text>
+                    <Text style={styles.subtitle}>{isEditing ? 'Update the details of your court.' : 'Define a court within your sports complex.'}</Text>
                 </View>
 
                 <View style={styles.form}>
                     <Text style={styles.inputLabel}>Select Complex *</Text>
                     <TouchableOpacity
-                        style={styles.pickerButton}
+                        style={[styles.pickerButton, errors.complexId && styles.pickerError]}
                         onPress={() => setShowComplexPicker(true)}
                     >
                         <View style={styles.pickerLeft}>
-                            <Building2 size={18} color={Colors.muted} style={{ marginRight: Spacing.sm }} />
+                            <Building2 size={18} color={errors.complexId ? Colors.error : Colors.muted} style={{ marginRight: Spacing.sm }} />
                             <Text style={[styles.pickerText, !complexId && styles.placeholderText]}>
                                 {selectedComplex?.name || 'Choose Complex'}
                             </Text>
                         </View>
-                        <ChevronDown size={18} color={Colors.muted} />
+                        <ChevronDown size={18} color={errors.complexId ? Colors.error : Colors.muted} />
                     </TouchableOpacity>
+                    {errors.complexId && <Text style={styles.errorTextSmall}>{errors.complexId}</Text>}
 
                     <Input
                         label="Court Name *"
                         placeholder="e.g. Main Court A"
                         value={name}
-                        onChangeText={setName}
-                        icon={<Trophy size={18} color={Colors.muted} />}
+                        onChangeText={(val) => {
+                            setName(val);
+                            if (errors.name) setErrors(prev => ({ ...prev, name: '' }));
+                        }}
+                        error={errors.name}
+                        icon={<Trophy size={18} color={errors.name ? Colors.error : Colors.muted} />}
                     />
 
                     <Text style={styles.inputLabel}>Court Type *</Text>
                     <TouchableOpacity
-                        style={styles.pickerButton}
+                        style={[styles.pickerButton, errors.type && styles.pickerError]}
                         onPress={() => setShowTypePicker(true)}
                     >
                         <View style={styles.pickerLeft}>
@@ -164,23 +228,28 @@ export default function AddCourtModal() {
                                 {type || 'Select Type'}
                             </Text>
                         </View>
-                        <ChevronDown size={18} color={Colors.muted} />
+                        <ChevronDown size={18} color={errors.type ? Colors.error : Colors.muted} />
                     </TouchableOpacity>
+                    {errors.type && <Text style={styles.errorTextSmall}>{errors.type}</Text>}
 
                     <Input
                         label="Price per Hour (₹) *"
                         placeholder="500"
                         value={price}
-                        onChangeText={setPrice}
+                        onChangeText={(val) => {
+                            setPrice(val);
+                            if (errors.price) setErrors(prev => ({ ...prev, price: '' }));
+                        }}
+                        error={errors.price}
                         keyboardType="numeric"
-                        icon={<Text style={{ fontSize: 18, color: Colors.muted, fontWeight: 'bold' }}>₹</Text>}
+                        icon={<Text style={{ fontSize: 18, color: errors.price ? Colors.error : Colors.muted, fontWeight: 'bold' }}>₹</Text>}
                     />
 
                     <TouchableOpacity
                         style={styles.slotLink}
                         onPress={() => router.push({
                             pathname: '/modal/slots',
-                            params: { complexId, name, type, price, description, slots: slotParam }
+                            params: { id, complexId, name, type, price, description, slots: slotParam || JSON.stringify(selectedSlots) }
                         })}
                     >
                         <Clock size={20} color={Colors.primary} />
@@ -200,7 +269,7 @@ export default function AddCourtModal() {
                     />
 
                     <Button
-                        title={loading ? "Creating..." : "Add Court"}
+                        title={loading ? (isEditing ? "Updating..." : "Creating...") : (isEditing ? "Update Court" : "Add Court")}
                         onPress={handleSubmit}
                         loading={loading}
                         style={styles.submitButton}
@@ -216,7 +285,10 @@ export default function AddCourtModal() {
                 visible={showComplexPicker}
                 onClose={() => setShowComplexPicker(false)}
                 data={complexes}
-                onSelect={setComplexId}
+                onSelect={(val: string) => {
+                    setComplexId(val);
+                    if (errors.complexId) setErrors(prev => ({ ...prev, complexId: '' }));
+                }}
                 title="Select Complex"
                 current={complexId}
                 labelKey="name"
@@ -226,7 +298,10 @@ export default function AddCourtModal() {
                 visible={showTypePicker}
                 onClose={() => setShowTypePicker(false)}
                 data={COURT_TYPES}
-                onSelect={setType}
+                onSelect={(val: string) => {
+                    setType(val);
+                    if (errors.type) setErrors(prev => ({ ...prev, type: '' }));
+                }}
                 title="Select Court Type"
                 current={type}
             />
@@ -274,7 +349,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: Spacing.md,
-        marginBottom: Spacing.sm,
+    },
+    pickerError: {
+        borderColor: Colors.error,
+    },
+    errorTextSmall: {
+        fontSize: 10,
+        color: Colors.error,
+        marginTop: -Spacing.sm,
+        marginBottom: Spacing.xs,
+        marginLeft: 4,
     },
     pickerLeft: {
         flexDirection: 'row',

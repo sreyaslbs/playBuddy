@@ -44,7 +44,9 @@ export default function SlotsModal() {
 
         // We navigate back and pass the data (Serialized)
         // In a real app, you might use a shared state or store
-        router.push({
+        // Use navigate to go back to the existing modal in the stack
+        // and update its parameters without pushing a new screen.
+        router.navigate({
             pathname: '/modal/add-court',
             params: { ...params, slots: JSON.stringify(slots) }
         });

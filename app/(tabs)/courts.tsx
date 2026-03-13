@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Building2, MapPin, Plus, Trash2 } from 'lucide-react-native';
+import { Building2, MapPin, Plus, Trash2, Edit2 } from 'lucide-react-native';
 import React from 'react';
 import { Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button } from '../../components/Button';
@@ -97,9 +97,14 @@ export default function ManageCourtsScreen() {
             </View>
             <View style={styles.courtRight}>
                 <Text style={styles.courtPrice}>₹{court.price}/hr</Text>
-                <TouchableOpacity onPress={() => handleDeleteCourt(court.id, court.name)}>
-                    <Trash2 size={16} color={Colors.error} />
-                </TouchableOpacity>
+                <View style={styles.actionButtons}>
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/modal/add-court', params: { id: court.id } })}>
+                        <Edit2 size={16} color={Colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDeleteCourt(court.id, court.name)}>
+                        <Trash2 size={16} color={Colors.error} />
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -120,9 +125,17 @@ export default function ManageCourtsScreen() {
                             </View>
                         </View>
                     </View>
-                    <TouchableOpacity onPress={() => handleDeleteComplex(complex.id, complex.name)}>
-                        <Trash2 size={20} color={Colors.muted} />
-                    </TouchableOpacity>
+                    <View style={styles.complexActions}>
+                        <TouchableOpacity
+                            onPress={() => router.push({ pathname: '/modal/complex', params: { id: complex.id } })}
+                            style={{ marginRight: Spacing.md }}
+                        >
+                            <Edit2 size={20} color={Colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteComplex(complex.id, complex.name)}>
+                            <Trash2 size={20} color={Colors.muted} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <View style={styles.divider} />
@@ -305,7 +318,17 @@ const styles = StyleSheet.create({
     },
     courtRight: {
         alignItems: 'flex-end',
-        gap: 6,
+        gap: 4,
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    complexActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     courtPrice: {
         fontSize: 14,

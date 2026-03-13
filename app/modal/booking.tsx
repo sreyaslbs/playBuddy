@@ -23,7 +23,7 @@ export default function BookingModal() {
     const router = useRouter();
     const { courtId } = useLocalSearchParams();
     const { user } = useAuth();
-    const { courts, bookings, addBooking, loading } = useData();
+    const { courts, availabilityBookings, addBooking, loading } = useData();
 
     const court = useMemo(() => courts.find(c => c.id === courtId), [courts, courtId]);
 
@@ -61,7 +61,7 @@ export default function BookingModal() {
         }
 
         // 2. Get existing bookings for this court on the selected date
-        const existingBookings = bookings.filter(b =>
+        const existingBookings = availabilityBookings.filter(b =>
             b.courtId === courtId &&
             b.date === selectedDate &&
             (b.status === 'Confirmed' || b.status === 'Pending')
@@ -82,7 +82,7 @@ export default function BookingModal() {
                 isBooked
             };
         }).sort((a, b) => a.hour - b.hour);
-    }, [court, selectedDate, bookings, courtId]);
+    }, [court, selectedDate, availabilityBookings, courtId]);
 
     const handleConfirmBooking = async () => {
         if (!user || !court || selectedSlot === null) return;
@@ -97,6 +97,7 @@ export default function BookingModal() {
                 courtName: court.name,
                 customerId: user.uid,
                 customerName: user.displayName || 'Guest',
+                managerId: court.managerId,
                 startTime,
                 endTime,
                 date: selectedDate,

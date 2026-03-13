@@ -7,6 +7,7 @@ import {
     orderBy,
     query,
     Timestamp,
+    updateDoc,
     where
 } from 'firebase/firestore';
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -54,17 +55,21 @@ export interface Booking {
     date: string;
     status: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
     price: number;
+    managerId: string;
 }
 
 interface DataContextType {
     complexes: Complex[];
     courts: Court[];
     bookings: Booking[];
+    availabilityBookings: Booking[];
     loading: boolean;
     addComplex: (complex: Omit<Complex, 'id' | 'managerId' | 'createdAt'>) => Promise<void>;
     addCourt: (court: Omit<Court, 'id' | 'managerId' | 'createdAt' | 'rating'>) => Promise<void>;
     deleteCourt: (courtId: string) => Promise<void>;
     deleteComplex: (complexId: string) => Promise<void>;
+    updateComplex: (id: string, complex: Partial<Omit<Complex, 'id' | 'managerId' | 'createdAt'>>) => Promise<void>;
+    updateCourt: (id: string, court: Partial<Omit<Court, 'id' | 'managerId' | 'createdAt' | 'rating'>>) => Promise<void>;
     addBooking: (booking: Omit<Booking, 'id' | 'status'>) => Promise<void>;
 }
 
@@ -72,11 +77,14 @@ const DataContext = createContext<DataContextType>({
     complexes: [],
     courts: [],
     bookings: [],
+    availabilityBookings: [],
     loading: true,
     addComplex: async () => { },
     addCourt: async () => { },
     deleteCourt: async () => { },
     deleteComplex: async () => { },
+    updateComplex: async () => { },
+    updateCourt: async () => { },
     addBooking: async () => { },
 });
 
@@ -85,6 +93,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [complexes, setComplexes] = useState<Complex[]>([]);
     const [courts, setCourts] = useState<Court[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [availabilityBookings, setAvailabilityBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Listen to Complexes
@@ -120,16 +129,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen to Courts
     useEffect(() => {
-        const q = query(collection(db, 'courts'), orderBy('createdAt', 'desc'));
+        if (!user || !role) return;
+
+        let q;
+        if (role === 'manager') {
+            // Remove orderBy to avoid requiring a composite index (managerId + createdAt)
+            q = query(collection(db, 'courts'), where('managerId', '==', user.uid));
+        } else {
+            q = query(collection(db, 'courts'), orderBy('createdAt', 'desc'));
+        }
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            console.log(`DataContext: Courts snapshot received. Count: ${snapshot.size}`);
             const courtsData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             })) as Court[];
-            console.log("DataContext: Courts fetched:", courtsData.length);
-            if (courtsData.length > 0) {
-                console.log(`Debug: Court ${courtsData[0].name} structure:`, JSON.stringify(courtsData[0].slots || []));
+            
+            // Sort in memory for managers since we removed orderBy from query
+            if (role === 'manager') {
+                courtsData.sort((a, b) => {
+                    const timeA = a.createdAt?.seconds || 0;
+                    const timeB = b.createdAt?.seconds || 0;
+                    return timeB - timeA;
+                });
             }
+
             setCourts(courtsData);
             setLoading(false);
         }, (error) => {
@@ -138,28 +163,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         return unsubscribe;
-    }, []);
+    }, [user, role]);
 
-    // Listen to Bookings (based on role)
+    // Listen to Bookings (based on role - for Dashboard/History)
     useEffect(() => {
         if (!user || !role) return;
 
         let q;
         if (role === 'manager') {
-            // Managers see all bookings for their complexes 
-            // (Simplified: showing all bookings they are managers of via courtId lookup would be ideal, 
-            // but for now showing all is fine as they are the only managers)
-            q = query(collection(db, 'bookings'));
+            // Managers see bookings where they are the manager
+            q = query(collection(db, 'bookings'), where('managerId', '==', user.uid));
         } else {
-            // Customers see:
-            // 1. Their own bookings (any status)
-            // 2. ALL 'Confirmed' bookings (to check availability globally)
-            // For now, let's fetch ALL 'Confirmed' bookings so they can see availability.
-            // Note: In a production app, you'd filter this more strictly by courtId/date.
-            q = query(
-                collection(db, 'bookings'),
-                where('status', '==', 'Confirmed')
-            );
+            // Customers see their own bookings
+            q = query(collection(db, 'bookings'), where('customerId', '==', user.uid));
         }
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -167,12 +183,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: doc.id,
                 ...doc.data()
             })) as Booking[];
-
-            // If customer, we also need to make sure their OWN non-confirmed bookings are included
-            // but for simplicity of the "check availability" logic, 'Confirmed' is what matters.
             setBookings(bookingsData);
         }, (error) => {
             console.error("Bookings listener error:", error);
+        });
+
+        return unsubscribe;
+    }, [user, role]);
+
+    // Listen to ALL Confirmed Bookings (only for Customers - for availability checking)
+    useEffect(() => {
+        if (!user || role !== 'customer') return;
+
+        const q = query(
+            collection(db, 'bookings'),
+            where('status', '==', 'Confirmed')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const bookingsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Booking[];
+            setAvailabilityBookings(bookingsData);
+        }, (error) => {
+            console.error("Availability Bookings listener error:", error);
         });
 
         return unsubscribe;
@@ -238,6 +273,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const updateComplex = async (id: string, complexData: Partial<Omit<Complex, 'id' | 'managerId' | 'createdAt'>>) => {
+        if (!user || role !== 'manager') throw new Error("Unauthorized");
+        try {
+            await updateDoc(doc(db, 'complexes', id), {
+                ...complexData,
+                updatedAt: Timestamp.now()
+            });
+            console.log(`DataContext: Complex ${id} updated successfully`);
+        } catch (error) {
+            console.error("Error updating complex:", error);
+            throw error;
+        }
+    };
+
+    const updateCourt = async (id: string, courtData: Partial<Omit<Court, 'id' | 'managerId' | 'createdAt' | 'rating'>>) => {
+        if (!user || role !== 'manager') throw new Error("Unauthorized");
+        try {
+            await updateDoc(doc(db, 'courts', id), {
+                ...courtData,
+                updatedAt: Timestamp.now()
+            });
+            console.log(`DataContext: Court ${id} updated successfully`);
+        } catch (error) {
+            console.error("Error updating court:", error);
+            throw error;
+        }
+    };
+
     const addBooking = async (bookingData: Omit<Booking, 'id' | 'status'>) => {
         try {
             await addDoc(collection(db, 'bookings'), {
@@ -252,7 +315,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <DataContext.Provider value={{ complexes, courts, bookings, loading, addComplex, addCourt, deleteCourt, deleteComplex, addBooking }}>
+        <DataContext.Provider value={{
+            complexes,
+            courts,
+            bookings,
+            availabilityBookings,
+            loading,
+            addComplex,
+            addCourt,
+            deleteCourt,
+            deleteComplex,
+            updateComplex,
+            updateCourt,
+            addBooking
+        }}>
             {children}
         </DataContext.Provider>
     );
