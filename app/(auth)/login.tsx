@@ -23,11 +23,12 @@ export default function LoginScreen() {
     });
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-        clientId: WEB_CLIENT_ID,
+        clientId: Platform.OS === 'android' ? ANDROID_CLIENT_ID : WEB_CLIENT_ID,
         webClientId: WEB_CLIENT_ID,
         androidClientId: ANDROID_CLIENT_ID,
         scopes: ['openid', 'profile', 'email'],
         redirectUri,
+        prompt: 'select_account', // Force account selection to avoid session persistence issues
     });
 
     const handleGoogleLogin = async () => {
@@ -38,7 +39,7 @@ export default function LoginScreen() {
             } else {
                 // For Mobile (Native)
                 if (request) {
-                    const result = await promptAsync();
+                    const result = await promptAsync({ showInRecents: true });
                     if (result.type === 'success') {
                         // Try idToken from authentication object first (implicit flow)
                         const idToken = result.authentication?.idToken || result.params?.id_token || null;
@@ -49,11 +50,10 @@ export default function LoginScreen() {
                             await loginWithGoogleCredential(idToken, accessToken);
                         } else if (result.params?.code) {
                             // Google returned Authorization Code — exchange it for real tokens
-                            // IMPORTANT: Use ANDROID_CLIENT_ID here, not WEB_CLIENT_ID.
-                            // Android client IDs use PKCE and DON'T require a client_secret.
+                            const currentClientId = Platform.OS === 'android' ? ANDROID_CLIENT_ID : WEB_CLIENT_ID;
                             const tokenResponse = await exchangeCodeAsync(
                                 {
-                                    clientId: ANDROID_CLIENT_ID,
+                                    clientId: currentClientId,
                                     code: result.params.code,
                                     redirectUri,
                                     extraParams: request.codeVerifier
