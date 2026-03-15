@@ -1,114 +1,60 @@
-# playBuddy - Your Ultimate Sports Partner
+# PlayBuddy 🏟️
 
-**playBuddy** is a modern, high-performance sports venue booking platform built with React Native and Firebase. It streamlines the connection between sports facility managers and sports enthusiasts, making it easy to list, discover, and book sports venues in real-time.
+Welcome to **PlayBuddy**, a comprehensive platform for managing sports complexes and booking courts. The project has been refactored into a modern **Turborepo Monorepo** architecture to support both Mobile (Expo/React Native) and Web (Next.js) platforms with shared business logic and UI components.
 
----
+## 🏗️ Architecture Overview
 
-## 🚀 Key Features
+The project uses a monorepo structure managed by [Turborepo](https://turbo.build/):
 
-### 🏢 For Managers (Venue Owners)
-- **Complex Management**: Add and manage multiple sports hubs with details like address, landmark, and location.
-- **Court Configuration**: Add specific courts (Turf, Football, Badminton, etc.) to each complex.
-- **Dynamic Pricing**: Set custom hourly rates (in INR) for each court.
-- **Flexible Slots**: Define operational hours and booking intervals for every court.
-- **Hub Dashboard**: Overview of all complexes and courts with the ability to edit or delete them.
+### 📱 Applications (`./apps`)
+- **`expo`**: The mobile application built with React Native and Expo Router. Handles member bookings, court management, and player profiles.
+- **`nextjs`**: The web application built with Next.js. Primarily serves as the Manager Dashboard for analytics and high-level complex management.
 
-### ⚽ For Players (Customers)
-- **Discovery**: Browse various sports complexes and hubs in your city.
-- **Real-time Availability**: View available slots for any court on a specific date.
-- **Seamless Booking**: Instant booking process with real-time state updates.
-- **Personal Dashboard**: Track all upcoming and past bookings in one place.
+### 📦 Shared Packages (`./packages`)
+- **`shared`**: Core business logic, including Firebase configuration, authentication providers (`AuthContext`), and data management (`DataContext`).
+- **`ui`**: The shared design system. Contains reusable React Native components (`Button`, `Card`, `Input`) and theme constants (`Colors`, `Typography`, `Spacing`) that work across both mobile and web (via React Native Web).
 
-### 🛠️ Core Functionalities
-- **One-time Role Selection**: New users choose their role (Manager or Player) upon first login, ensuring a tailored experience.
-- **Location-based Services**: Built-in support for major Indian cities and states.
-- **Cross-Platform**: Designed to run seamlessly on Web, Android, and iOS.
-
----
-
-## 💻 Technical Stack
-
-- **Framework**: [React Native](https://reactnative.dev/) with [Expo](https://expo.dev/)
-- **Navigation**: [Expo Router](https://docs.expo.dev/router/introduction/) (File-based routing)
-- **Database**: [Firebase Firestore](https://firebase.google.com/docs/firestore)
-- **Authentication**: [Firebase Auth](https://firebase.google.com/docs/auth) (Google Sign-In)
-- **Icons**: [Lucide React Native](https://lucide.dev/guide/packages/lucide-react-native)
-- **Language**: TypeScript
-
----
-
-## 📂 Project Structure
-
-```text
-playBuddy/
-├── app/                  # Expo Router directory (Screens & Layouts)
-│   ├── (auth)/           # Authentication & Role Selection
-│   ├── (tabs)/           # Main Application Tab Navigation
-│   ├── modal/            # Full-screen Modals (Add Court, Booking, etc.)
-│   └── _layout.tsx       # Root Navigation Logic & Protection
-├── components/           # Reusable UI Components (Button, Card, Input)
-├── context/              # State Management (AuthContext, DataContext)
-├── constants/            # Global Config (Styles, Firebase, Locations)
-├── assets/               # Fonts, Images, and Logos
-└── package.json          # Dependencies and Scripts
-```
-
----
-
-## 🎨 Design Philosophy
-
-The app follows a **Premium, High-Contrast** design system:
-- **Primary Color**: `#2DD4BF` (Teal-400) - Vibrant and energetic.
-- **Secondary Color**: `#0F172A` (Slate-900) - Professional and deep dark tones.
-- **Typography**: Focused on readability with a tiered font size system and semi-bold weights for hierarchy.
-- **Aesthetics**: Glassmorphism effects, smooth transitions, and subtle shadows for a modern mobile feel.
-
----
-
-## 🛠️ Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
+- Node.js (v18+)
+- npm (v10.2.4+ recommended)
+- Firebase project credentials
 
 ### Installation
-1. Clone the repository
-2. Install dependencies:
+1. Clone the repository.
+2. Install dependencies at the root:
    ```bash
    npm install
    ```
-3. Create a `.env` file in the root directory and add your Firebase configuration:
-   ```env
-   EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
-   EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
-   EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-   EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-   EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
-   ```
 
-### Running the App
-- **Web**:
-  ```bash
-  npm run web
-  ```
-- **Android**:
-  ```bash
-  npm run android
-  ```
-- **iOS**:
-  ```bash
-  npm run ios
-  ```
+### Running Locally
+You can run all platforms simultaneously from the root directory:
 
----
+```bash
+# Start both Expo and Next.js in development mode
+npm run dev
+```
 
-## 🔒 Security & Rules
-The app uses Firebase Security Rules to ensure:
-1. Managers can only modify/delete complexes and courts they own.
-2. Customers can only view bookings and create their own.
-3. Authenticated users can access their own metadata based on their UID.
+Or run them individually using Turbo filters:
+```bash
+# Run only Mobile
+npx turbo dev --filter=@playbuddy/expo
 
----
+# Run only Web
+npx turbo dev --filter=@playbuddy/nextjs
+```
 
-*Developed with ❤️ for the Sports Community.*
+## 🔐 Security & Payments
+The architecture is designed with security-first principles:
+- **Shared Auth**: Unified authentication logic ensures consistent session management across platforms.
+- **PCI Compliance Ready**: Integration points for payment gateways (Stripe/Razorpay) are isolated to ensure sensitive data is handled securely.
+- **Firebase Rules**: Granular access control based on user roles (Manager vs. Customer).
+
+## 🛠️ Tech Stack
+- **Monorepo**: Turborepo
+- **Mobile**: Expo, Expo Router, React Native
+- **Web**: Next.js, React Native Web, Solito
+- **Backend**: Firebase (Auth, Firestore)
+- **Styling**: Shared UI Components, Vanilla CSS
+- **Icons**: Lucide React / Lucide React Native
