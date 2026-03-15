@@ -1,96 +1,66 @@
-import { useAuth } from '@playbuddy/shared';
-import { Button, Card, Colors, Input } from '@playbuddy/ui';
-import { Lock, LogIn, Mail, MailWarning, Trophy } from 'lucide-react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import React, { useEffect, useState } from 'react';
+import { Trophy, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { useAuth } from '@playbuddy/shared';
+import { Colors, Button, Card, Input } from '@playbuddy/ui';
+import Link from 'next/link';
 
-export default function WebLogin() {
+export default function WebSignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { user, loginWithGooglePopup, loginWithEmail, sendVerificationEmail, refreshUser, role, logout } = useAuth();
+  const [success, setSuccess] = useState(false);
+  
+  const { user, signUpWithEmail } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (user && user.emailVerified && !loading) {
+    if (user && user.emailVerified) {
       router.push('/');
     }
-  }, [user, role, loading, router]);
+  }, [user, router]);
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      await loginWithGooglePopup();
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      setError('Login failed: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter both email and password');
+    if (!email || !password || !displayName) {
+      setError('Please fill in all fields');
       return;
     }
+    
     setLoading(true);
     setError('');
     try {
-      await loginWithEmail(email, password);
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      setError('Invalid email or password');
+      await signUpWithEmail(email, password, displayName);
+      setSuccess(true);
+    } catch (err: any) {
+      console.error('Sign up failed:', err);
+      setError(err.message || 'Sign up failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendVerification = async () => {
-    try {
-      await sendVerificationEmail();
-      alert('Verification email sent!');
-    } catch (error: any) {
-      alert('Error: ' + error.message);
-    }
-  };
-
-  if (user && !user.emailVerified) {
+  if (success) {
     return (
       <div className="login-page">
         <div className="login-content">
           <Card style={styles.card}>
-            <div className="warning-icon">
-               <MailWarning size={48} color={Colors.warning || '#ffcc00'} />
+            <div className="success-icon">
+               <Mail size={48} color={Colors.primary} />
             </div>
-            <h2 className="card-heading">Verify your email</h2>
+            <h2 className="card-heading">Check your email</h2>
             <p className="card-subheading">
-              Please verify your email to access your account. Check your inbox for the verification link.
+              We've sent a verification link to <strong>{email}</strong>. 
+              Please verify your email to continue.
             </p>
-            <div className="button-group">
-               <Button
-                  title="I've Verified My Email"
-                  onPress={refreshUser}
-                  variant="primary"
-                  style={styles.fullWidth}
-                />
-               <Button
-                  title="Resend Verification Email"
-                  onPress={handleResendVerification}
-                  variant="outline"
-                  style={styles.fullWidth}
-                />
-               <Button
-                  title="Sign Out"
-                  onPress={logout}
-                  variant="ghost"
-                  style={styles.fullWidth}
-                />
-            </div>
+            <Button
+              title="Back to Login"
+              onPress={() => router.push('/login')}
+              variant="primary"
+              style={{ width: '100%' }}
+            />
           </Card>
         </div>
         <style jsx>{`
@@ -107,7 +77,7 @@ export default function WebLogin() {
             max-width: 440px;
             text-align: center;
           }
-          .warning-icon {
+          .success-icon {
             margin-bottom: 24px;
             display: flex;
             justify-content: center;
@@ -124,11 +94,6 @@ export default function WebLogin() {
             margin-bottom: 32px;
             line-height: 1.5;
           }
-          .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-          }
         `}</style>
       </div>
     );
@@ -142,17 +107,21 @@ export default function WebLogin() {
              <Trophy size={48} color={Colors.primary} />
           </div>
           <h1 className="title">playBuddy</h1>
-          <p className="subtitle">Your Ultimate Sports Partner</p>
+          <p className="subtitle">Create your account</p>
         </header>
 
         <div className="auth-card-wrapper">
           <Card style={styles.card}>
-             <h2 className="card-heading">Welcome Back</h2>
-             <p className="card-subheading">Sign in to manage your sports bookings.</p>
-             
-             <form onSubmit={handleEmailLogin}>
+             <form onSubmit={handleSignUp}>
                <Input
-                  label="Email"
+                  label="Full Name"
+                  placeholder="Enter your name"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  icon={<User size={18} color={Colors.muted} />}
+                />
+               <Input
+                  label="Email Address"
                   placeholder="Enter your email"
                   value={email}
                   onChangeText={setEmail}
@@ -162,7 +131,7 @@ export default function WebLogin() {
                 />
                <Input
                   label="Password"
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
@@ -172,30 +141,17 @@ export default function WebLogin() {
                {error ? <p className="error-message">{error}</p> : null}
 
                <Button
-                  title={loading ? 'Signing in...' : 'Sign In'}
-                  onPress={handleEmailLogin as any}
+                  title={loading ? 'Creating account...' : 'Sign Up'}
+                  onPress={handleSignUp as any}
                   loading={loading}
                   variant="primary"
                   style={styles.submitButton}
                 />
              </form>
 
-             <div className="divider">
-                <span>or</span>
-             </div>
-
-             <Button
-                title="Continue with Google"
-                onPress={handleGoogleLogin}
-                loading={loading}
-                variant="outline"
-                style={styles.googleButton}
-                icon={<LogIn size={20} color={Colors.primary} />}
-              />
-
              <div className="footer-links">
                 <p className="footer-text">
-                  Don't have an account? <Link href="/signup" className="link">Sign Up</Link>
+                  Already have an account? <Link href="/login" className="link">Sign In</Link>
                 </p>
              </div>
           </Card>
@@ -247,48 +203,11 @@ export default function WebLogin() {
           margin-top: 4px;
         }
 
-        .card-heading {
-          font-size: 24px;
-          font-weight: 700;
-          color: ${Colors.secondary};
-          margin-bottom: 12px;
-          text-align: center;
-        }
-
-        .card-subheading {
-          font-size: 14px;
-          color: ${Colors.muted};
-          margin-bottom: 32px;
-          text-align: center;
-          line-height: 1.5;
-        }
-
         .error-message {
           color: ${Colors.error};
           font-size: 12px;
           margin-bottom: 16px;
           text-align: left;
-        }
-
-        .divider {
-          display: flex;
-          align-items: center;
-          text-align: center;
-          margin: 24px 0;
-          color: ${Colors.muted};
-          font-size: 12px;
-          text-transform: uppercase;
-        }
-
-        .divider::before,
-        .divider::after {
-          content: '';
-          flex: 1;
-          border-bottom: 1px solid ${Colors.border};
-        }
-
-        .divider span {
-          padding: 0 10px;
         }
 
         .footer-links {
@@ -320,16 +239,8 @@ const styles = {
     backgroundColor: Colors.surface,
     borderRadius: 24,
   },
-  googleButton: {
-    width: '100%' as any,
-    borderColor: Colors.border,
-    paddingVertical: 12,
-  },
   submitButton: {
     width: '100%' as any,
     marginTop: 8,
-  },
-  fullWidth: {
-    width: '100%' as any,
   }
 };

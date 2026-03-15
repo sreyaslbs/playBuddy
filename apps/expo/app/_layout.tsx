@@ -6,12 +6,12 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { AuthProvider, DataProvider, useAuth } from '@playbuddy/shared';
 import { Colors as AppColors } from '@playbuddy/ui';
-import { AuthProvider, useAuth, DataProvider } from '@playbuddy/shared';
 
 export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary
+    // Catch any errors thrown by the Layout component.
+    ErrorBoundary
 } from 'expo-router';
 
 export const unstable_settings = {
@@ -64,13 +64,13 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(auth)';
     const onSelectRole = segments.length > 1 && segments[1] === 'select-role';
 
-    if (!user && !inAuthGroup) {
-      // Redirect to the login page if the user is not authenticated
+    if ((!user || !user.emailVerified) && !inAuthGroup) {
+      // Redirect to the login page if the user is not authenticated or not verified
       router.replace('/(auth)/login');
-    } else if (user && !role && !onSelectRole) {
+    } else if (user && user.emailVerified && !role && !onSelectRole) {
       // Authenticated but no role selected (new user)
       router.replace('/(auth)/select-role');
-    } else if (user && role && (inAuthGroup || (segments as string[]).length === 0)) {
+    } else if (user && user.emailVerified && role && (inAuthGroup || (segments as string[]).length === 0)) {
       // Authenticated with role - go to main app
       router.replace('/(tabs)');
     }

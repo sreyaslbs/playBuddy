@@ -1,12 +1,12 @@
+import { useAuth } from '@playbuddy/shared';
+import { BorderRadius, Button, Colors, Input, Spacing, Typography } from '@playbuddy/ui';
 import { exchangeCodeAsync, makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
+import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { LogIn, Trophy } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button } from '@playbuddy/ui';
-import { BorderRadius, Colors, Spacing, Typography } from '@playbuddy/ui';
-import { useAuth } from '@playbuddy/shared';
+import { Lock, LogIn, Mail, MailWarning, Trophy } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -14,8 +14,20 @@ const WEB_CLIENT_ID = '224571215171-bdhlk4jekmeio6r0854eim6l7pnjr6os.apps.google
 const ANDROID_CLIENT_ID = '224571215171-aarv2sevm5c6fjcj1umqt5pr32jc7q0d.apps.googleusercontent.com';
 
 export default function LoginScreen() {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const { loginWithGooglePopup, loginWithGoogleCredential } = useAuth();
+    const [error, setError] = useState('');
+    const { user, loginWithGooglePopup, loginWithGoogleCredential, loginWithEmail, sendVerificationEmail, refreshUser, logout } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        console.log('Login Screen user state effect. User:', user?.email, 'Verified:', user?.emailVerified);
+        if (user && user.emailVerified) {
+            console.log('User is verified, navigating to dashboard...');
+            router.replace('/');
+        }
+    }, [user, router]);
 
     // Force the redirect URI to use the Android Package Name scheme that Google explicitly authorizes
     const redirectUri = makeRedirectUri({
@@ -34,6 +46,7 @@ export default function LoginScreen() {
 
     const handleGoogleLogin = async () => {
         setLoading(true);
+        setError('');
         try {
             if (Platform.OS === 'web') {
                 await loginWithGooglePopup();
@@ -70,17 +83,80 @@ export default function LoginScreen() {
                             throw new Error('No tokens or code received from Google.');
                         }
                     } else if (result.type !== 'dismiss') {
-                        Alert.alert('Login cancelled or failed', `Status: ${result.type}`);
+                        setError(`Login cancelled or failed: ${result.type}`);
                     }
                 }
             }
-        } catch (error: any) {
-            console.error("Login Error:", error);
-            Alert.alert('Login Failed', error.message);
+        } catch (err: any) {
+            console.error("Login Error:", err);
+            setError(err.message || 'Login failed. Please try again.');
         } finally {
             setLoading(false);
         }
     };
+
+    const handleEmailLogin = async () => {
+        if (!email || !password) {
+            setError('Please enter both email and password');
+            return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+            await loginWithEmail(email, password);
+        } catch (err: any) {
+            console.error('Login failed:', err);
+            setError(err.message || 'Invalid email or password');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        try {
+            await sendVerificationEmail();
+            Alert.alert('Success', 'Verification email sent!');
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        }
+    };
+
+    if (user && !user.emailVerified) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.scrollContent}>
+                    <View style={styles.card}>
+                        <View style={styles.warningIcon}>
+                            <MailWarning size={48} color={Colors.warning || '#ffcc00'} />
+                        </View>
+                        <Text style={styles.cardHeading}>Verify your email</Text>
+                        <Text style={styles.cardSubheading}>
+                            Please verify your email to access your account. Check your inbox for the verification link.
+                        </Text>
+                        <View style={styles.buttonGroup}>
+                            <Button
+                                title="I've Verified My Email"
+                                onPress={refreshUser}
+                                variant="primary"
+                            />
+                            <Button
+                                title="Resend Verification"
+                                onPress={handleResendVerification}
+                                variant="outline"
+                                style={{ marginTop: Spacing.md }}
+                            />
+                            <Button
+                                title="Sign Out"
+                                onPress={logout}
+                                variant="ghost"
+                                style={{ marginTop: Spacing.md }}
+                            />
+                        </View>
+                    </View>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
@@ -97,11 +173,45 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.cardHeading}>Welcome</Text>
-                    <Text style={styles.cardSubheading}>Sign in to discover and book sports venues around you</Text>
+                    <Text style={styles.cardHeading}>Welcome Back</Text>
+                    <Text style={styles.cardSubheading}>Sign in to manage your sports bookings</Text>
+
+                    <Input
+                        label="Email Address"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        icon={<Mail size={18} color={Colors.muted} />}
+                    />
+                    <Input
+                        label="Password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry
+                        icon={<Lock size={18} color={Colors.muted} />}
+                    />
+
+                    {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
                     <Button
-                        title={loading ? 'Signing in...' : 'Sign in with Google'}
+                        title={loading ? 'Signing in...' : 'Sign In'}
+                        onPress={handleEmailLogin}
+                        loading={loading}
+                        variant="primary"
+                        style={styles.submitButton}
+                    />
+
+                    <View style={styles.divider}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>or</Text>
+                        <View style={styles.dividerLine} />
+                    </View>
+
+                    <Button
+                        title="Continue with Google"
                         onPress={handleGoogleLogin}
                         loading={loading}
                         variant="outline"
@@ -109,9 +219,14 @@ export default function LoginScreen() {
                         icon={<LogIn size={20} color={Colors.primary} />}
                     />
 
-                    <Text style={styles.helperText}>
-                        By signing in, you agree to our Terms of Service and Privacy Policy.
-                    </Text>
+                    <TouchableOpacity 
+                        style={styles.footerLink} 
+                        onPress={() => router.push('/signup')}
+                    >
+                        <Text style={styles.footerText}>
+                            Don't have an account? <Text style={styles.link}>Sign Up</Text>
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -133,26 +248,26 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.xxl,
     },
     logoContainer: {
-        width: 80,
-        height: 80,
+        width: 64,
+        height: 64,
         borderRadius: BorderRadius.full,
         backgroundColor: Colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.sm,
         shadowColor: Colors.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
     },
     title: {
-        fontSize: Typography.size.xxxl,
+        fontSize: Typography.size.xxl,
         fontWeight: Typography.weight.bold,
         color: Colors.secondary,
     },
     subtitle: {
-        fontSize: Typography.size.md,
+        fontSize: Typography.size.sm,
         color: Colors.muted,
         marginTop: Spacing.xs,
     },
@@ -178,6 +293,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: Spacing.xs,
         marginBottom: Spacing.xl,
+    },
+    errorText: {
+        color: Colors.error,
+        fontSize: Typography.size.xs,
+        marginBottom: Spacing.md,
+        textAlign: 'left',
     },
     tabContainer: {
         flexDirection: 'row',
@@ -209,14 +330,45 @@ const styles = StyleSheet.create({
         color: Colors.primary,
         fontWeight: Typography.weight.semiBold,
     },
+    submitButton: {
+        marginTop: Spacing.sm,
+    },
     googleButton: {
         borderColor: Colors.border,
-        paddingVertical: Spacing.md,
     },
-    helperText: {
+    divider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: Spacing.xl,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: Colors.border,
+    },
+    dividerText: {
+        paddingHorizontal: Spacing.md,
         fontSize: Typography.size.xs,
         color: Colors.muted,
-        textAlign: 'center',
+        textTransform: 'uppercase',
+    },
+    footerLink: {
+        marginTop: Spacing.xl,
+        alignItems: 'center', 
+    },
+    footerText: {
+        fontSize: Typography.size.sm,
+        color: Colors.muted,
+    },
+    link: {
+        color: Colors.primary,
+        fontWeight: Typography.weight.bold,
+    },
+    warningIcon: {
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+    },
+    buttonGroup: {
         marginTop: Spacing.xl,
     },
 });
