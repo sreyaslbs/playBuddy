@@ -1,0 +1,13 @@
+{
+  "name": "@playbuddy/shared",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "private": true,
+  "dependencies": {
+    "firebase": "^12.10.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}
