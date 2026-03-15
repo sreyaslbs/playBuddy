@@ -45,6 +45,10 @@ out/
 # Turbo
 .turbo/
 
+# Firebase
+.firebase/
+firebase-debug.log*
+
 # typescript
 *.tsbuildinfo
 
