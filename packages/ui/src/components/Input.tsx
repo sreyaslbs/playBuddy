@@ -6,6 +6,7 @@ interface InputProps extends TextInputProps {
     label?: string;
     error?: string;
     containerStyle?: ViewStyle;
+    className?: string; // For Next.js/Web support
     icon?: React.ReactNode;
 }
 
@@ -13,11 +14,15 @@ export const Input: React.FC<InputProps> = ({
     label,
     error,
     containerStyle,
+    className,
     icon,
     ...props
 }) => {
+    // Cast View to any for className support via react-native-web
+    const StyledView: any = View;
+
     return (
-        <View style={[styles.container, containerStyle]}>
+        <StyledView style={[styles.container, containerStyle]} className={className}>
             {label && <Text style={styles.label}>{label}</Text>}
             <View style={styles.inputContainer}>
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
@@ -33,7 +38,7 @@ export const Input: React.FC<InputProps> = ({
                 />
             </View>
             {error && <Text style={styles.errorText}>{error}</Text>}
-        </View>
+        </StyledView>
     );
 };
 

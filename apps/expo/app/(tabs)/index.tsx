@@ -103,6 +103,9 @@ export default function DashboardScreen() {
     let weekRevenue = 0;
 
     bookings.forEach(b => {
+      // Skip maintenance bookings for revenue and counts
+      if (b.bookingType === 'maintenance') return;
+
       const [d, m, y] = b.date.split('/').map(Number);
       const bookingDate = new Date(y, m - 1, d);
       

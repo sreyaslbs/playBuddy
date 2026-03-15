@@ -9,6 +9,7 @@ interface ButtonProps {
     loading?: boolean;
     disabled?: boolean;
     style?: ViewStyle;
+    className?: string; // For Next.js/Web support
     textStyle?: TextStyle;
     icon?: React.ReactNode;
 }
@@ -20,6 +21,7 @@ export const Button: React.FC<ButtonProps> = ({
     loading = false,
     disabled = false,
     style,
+    className,
     textStyle,
     icon,
 }) => {
@@ -27,10 +29,14 @@ export const Button: React.FC<ButtonProps> = ({
     const isSecondary = variant === 'secondary';
     const isGhost = variant === 'ghost';
 
+    // Cast to any to support className on web via react-native-web
+    const Touchable: any = TouchableOpacity;
+
     return (
-        <TouchableOpacity
+        <Touchable
             onPress={onPress}
             disabled={disabled || loading}
+            className={className}
             style={[
                 styles.base,
                 isOutline && styles.outline,
@@ -59,7 +65,7 @@ export const Button: React.FC<ButtonProps> = ({
                     </Text>
                 </>
             )}
-        </TouchableOpacity>
+        </Touchable>
     );
 };
 

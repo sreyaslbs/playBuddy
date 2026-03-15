@@ -18,6 +18,6 @@ config.resolver.nodeModulesPaths = [
 ];
 
 // 3. Force Metro to resolve (and bundle) packages from their source if they are within our 'packages' folder
-config.resolver.disableHierarchicalLookup = true;
+config.resolver.disableHierarchicalLookup = false;
 
 module.exports = config;

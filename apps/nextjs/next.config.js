@@ -1,7 +1,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@playbuddy/shared', '@playbuddy/ui', 'react-native', 'react-native-web'],
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
+  transpilePackages: [
+    '@playbuddy/shared', 
+    '@playbuddy/ui', 
+    'react-native', 
+    'react-native-web',
+    'firebase',
+    '@firebase/app',
+    '@firebase/auth',
+    '@firebase/firestore',
+    '@firebase/util',
+    '@firebase/component',
+    '@firebase/logger'
+  ],
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),

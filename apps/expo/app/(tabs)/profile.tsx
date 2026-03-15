@@ -1,12 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth } from '@playbuddy/shared';
-import { Colors, Spacing, Typography, BorderRadius, Card } from '@playbuddy/ui';
-import { User, Settings, CreditCard, Bell, LogOut, ChevronRight, Plus, Building2, History } from 'lucide-react-native';
+import { BorderRadius, Card, Colors, Spacing, Typography } from '@playbuddy/ui';
 import { useRouter } from 'expo-router';
+import { Bell, Building2, ChevronRight, CreditCard, History, LogOut, MapPin, Settings, User } from 'lucide-react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ProfileScreen() {
-    const { user, role, logout } = useAuth();
+    const { user, role, metadata, logout } = useAuth();
     const router = useRouter();
 
     const ProfileItem = ({ icon: Icon, label, onPress, color = Colors.secondary }: any) => (
@@ -27,8 +27,18 @@ export default function ProfileScreen() {
                 <View style={styles.avatarBox}>
                     <User size={40} color={Colors.muted} />
                 </View>
-                <Text style={styles.userName}>{user?.displayName || 'Sports Enthusiast'}</Text>
+                <Text style={styles.userName}>{metadata?.displayName || user?.displayName || 'Sports Enthusiast'}</Text>
                 <Text style={styles.userEmail}>{user?.email}</Text>
+                
+                {(metadata?.defaultCity || metadata?.defaultState) && (
+                    <View style={styles.locationRow}>
+                        <MapPin size={12} color={Colors.muted} />
+                        <Text style={styles.locationText}>
+                            {metadata.defaultCity}{metadata.defaultCity && metadata.defaultState ? ', ' : ''}{metadata.defaultState}
+                        </Text>
+                    </View>
+                )}
+
                 <View style={styles.roleBadge}>
                     <Text style={styles.roleText}>{role === 'manager' ? 'Court Manager' : 'Player'}</Text>
                 </View>
@@ -62,7 +72,11 @@ export default function ProfileScreen() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Account Settings</Text>
                 <Card style={styles.card} variant="outlined">
-                    <ProfileItem icon={User} label="Personal Information" />
+                    <ProfileItem 
+                        icon={User} 
+                        label="Personal Information" 
+                        onPress={() => router.push('/modal/personal-info')}
+                    />
                     <ProfileItem icon={CreditCard} label="Payment Methods" />
                     <ProfileItem icon={Bell} label="Notifications" />
                     <ProfileItem icon={Settings} label="Preferences" />
@@ -113,6 +127,16 @@ const styles = StyleSheet.create({
         fontSize: Typography.size.sm,
         color: Colors.muted,
         marginTop: 2,
+    },
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        gap: 4,
+    },
+    locationText: {
+        fontSize: Typography.size.xs,
+        color: Colors.muted,
     },
     roleBadge: {
         backgroundColor: Colors.primary + '20',

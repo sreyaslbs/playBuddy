@@ -5,6 +5,7 @@ import { Colors, Spacing, BorderRadius } from '../theme/Styles';
 interface CardProps {
     children: React.ReactNode;
     style?: ViewStyle;
+    className?: string; // For Next.js/Web support
     variant?: 'elevated' | 'outlined' | 'flat';
     onPress?: () => void;
 }
@@ -12,11 +13,16 @@ interface CardProps {
 export const Card: React.FC<CardProps> = ({
     children,
     style,
+    className,
     variant = 'elevated',
     onPress,
 }) => {
+    // Cast View to any for className support via react-native-web
+    const StyledView: any = View;
+
     const content = (
-        <View
+        <StyledView
+            className={className}
             style={[
                 styles.base,
                 variant === 'elevated' && styles.elevated,
@@ -26,7 +32,7 @@ export const Card: React.FC<CardProps> = ({
             ]}
         >
             {children}
-        </View>
+        </StyledView>
     );
 
     if (onPress) {

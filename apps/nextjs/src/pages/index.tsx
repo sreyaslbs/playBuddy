@@ -1,23 +1,25 @@
-import React, { useMemo } from 'react';
-import { useRouter } from 'next/router';
-import { 
-  Calendar, 
-  Clock, 
-  Users, 
-  MapPin, 
-  Trophy, 
-  TrendingUp, 
-  Bell,
-  ArrowRight
-} from 'lucide-react';
 import { useAuth, useData } from '@playbuddy/shared';
-import { Colors, Spacing, Typography, Card, Button } from '@playbuddy/ui';
+import { Button, Card, Colors } from '@playbuddy/ui';
+import {
+    ArrowRight,
+    Bell,
+    Calendar,
+    Clock,
+    Info,
+    MapPin,
+    TrendingUp,
+    Trophy,
+    X
+} from 'lucide-react';
+import { useRouter } from 'next/router';
+import { useMemo, useState } from 'react';
 
 export default function WebDashboard() {
   const { role, user, loading: authLoading } = useAuth();
   const { bookings, courts, complexes, loading: dataLoading } = useData();
   const router = useRouter();
   
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const isManager = role === 'manager';
 
   // Memoized upcoming bookings logic (same as mobile)
@@ -45,6 +47,9 @@ export default function WebDashboard() {
     const today = new Date().toLocaleDateString('en-GB');
 
     bookings.forEach(b => {
+      // Skip maintenance bookings for stats and revenue
+      if (b.bookingType === 'maintenance') return;
+
       if (b.date === today) todayCount++;
       weekRevenue += Number(b.price || 0);
     });
@@ -146,7 +151,7 @@ export default function WebDashboard() {
                    </div>
                    <div className="booking-action">
                       <span className={`status-pill ${booking.status.toLowerCase()}`}>{booking.status}</span>
-                      <Button variant="secondary" title="Details" icon={<ArrowRight size={14} />} onPress={() => {}} />
+                      <Button variant="secondary" title="Details" icon={<ArrowRight size={14} />} onPress={() => setSelectedBooking(booking)} />
                    </div>
                 </Card>
               ))
@@ -179,10 +184,187 @@ export default function WebDashboard() {
         </aside>
       </div>
 
+      {/* Booking Detail Modal */}
+      {selectedBooking && (
+        <div className="modal-overlay" onClick={() => setSelectedBooking(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <Info size={20} color={Colors.primary} />
+                <h2>Booking Details</h2>
+              </div>
+              <button className="close-btn" onClick={() => setSelectedBooking(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Court</span>
+                  <span className="detail-value">{selectedBooking.courtName}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Complex</span>
+                  <span className="detail-value">{selectedBooking.complexName || 'Sports Hub'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Date</span>
+                  <span className="detail-value">{selectedBooking.date}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Time</span>
+                  <span className="detail-value">{selectedBooking.startTime} - {selectedBooking.endTime}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Status</span>
+                  <div className={`status-pill ${selectedBooking.status.toLowerCase()}`}>
+                    {selectedBooking.status}
+                  </div>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Total Amount</span>
+                  <span className="detail-value price">₹{selectedBooking.price || 0}</span>
+                </div>
+                
+                {isManager && (
+                  <>
+                    <div className="detail-item">
+                      <span className="detail-label">Customer</span>
+                      <span className="detail-value">{selectedBooking.customerName}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="detail-label">Booking Type</span>
+                      <span className="detail-value type-tag">
+                        {selectedBooking.bookingType === 'maintenance' ? '🔧 Maintenance' : 
+                         selectedBooking.bookingType === 'manager_behalf' ? '👤 Walk-in' : '📱 App Booking'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <Button title="Close" variant="outline" onPress={() => setSelectedBooking(null)} />
+              {selectedBooking.status === 'Pending' && (
+                <Button title="Approve Booking" variant="primary" onPress={() => {}} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
-        .dashboard-container {
-          max-width: 1200px;
-          margin: 0 auto;
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+          background: white;
+          width: 90%;
+          max-width: 500px;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+          padding: 20px 24px;
+          border-bottom: 1px solid ${Colors.border};
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .modal-title-group {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .modal-header h2 {
+          font-size: 18px;
+          font-weight: 700;
+          margin: 0;
+        }
+
+        .close-btn {
+          background: none;
+          border: none;
+          color: ${Colors.muted};
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+
+        .close-btn:hover {
+          background-color: ${Colors.background};
+          color: ${Colors.secondary};
+        }
+
+        .modal-body {
+          padding: 24px;
+        }
+
+        .detail-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+
+        .detail-item {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .detail-label {
+          font-size: 12px;
+          color: ${Colors.muted};
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+          font-size: 15px;
+          font-weight: 700;
+          color: ${Colors.secondary};
+        }
+
+        .detail-value.price {
+          color: ${Colors.primary};
+          font-size: 18px;
+        }
+
+        .type-tag {
+          font-size: 13px;
+          color: ${Colors.muted};
+          font-weight: 500;
+        }
+
+        .modal-footer {
+          padding: 16px 24px;
+          background-color: ${Colors.background}50;
+          border-top: 1px solid ${Colors.border};
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
         }
 
         .welcome-header {

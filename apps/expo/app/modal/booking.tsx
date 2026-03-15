@@ -10,6 +10,7 @@ import {
     Dimensions
 } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { Plus, Wrench, User as UserIcon, Info, CheckCircle2 } from 'lucide-react-native';
 import { useAuth, useData } from '@playbuddy/shared';
 import { Colors, Spacing, Typography, BorderRadius, Card, Button, Input } from '@playbuddy/ui';
 
